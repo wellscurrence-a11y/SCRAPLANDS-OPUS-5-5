@@ -56,7 +56,7 @@ const out = {};
 {
   const m = begin('m_convoy');
   const r = loc('rustwater');
-  tp(r.x - 70, r.z + 10);
+  tp(r.x - 70, r.z + 10); // standing right on the meeting point
   game.simulate(0.5);
   const c = m.convoy;
   let moved = 0;
@@ -64,6 +64,7 @@ const out = {};
     const c0 = c.currPos.clone();
     game.simulate(4);
     moved = c.currPos.distanceTo(c0);
+    out.convoyState = { inWorld: game.ctx.machines.includes(c), alive: c.alive, disposed: c.disposed, failed: m.failed, finished: m.finished, killedBy: c.killedBy?.name ?? null };
     put(c, 120, 118, Math.PI / 2);
     tp(140, 118);
     game.simulate(0.3);

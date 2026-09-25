@@ -460,6 +460,7 @@ export class Machine {
 
   /** Move the machine instantly (towing, tests), upright and at rest, feet on the ground. */
   teleport(pos: THREE.Vector3, yaw: number) {
+    if (this.disposed) return;
     const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
     this.body.setTranslation({ x: pos.x, y: pos.y, z: pos.z }, true);
     this.body.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
@@ -857,7 +858,12 @@ export class Machine {
     }
   }
 
+  /** Set once the physics body is freed; the machine must not be touched after that. */
+  disposed = false;
+
   dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
     for (const p of this.parts) {
       if (p.collider) this.ctx.physics.owners.delete(p.collider.handle);
     }

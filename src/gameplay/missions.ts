@@ -287,7 +287,10 @@ class ConvoyEscort extends Mission {
       this.path.push(new THREE.Vector3(-700, 0, 95));
       const d = generateEnemy({ faction: 'independents', tier: 1, seed: 777, role: 'trader' });
       d.name = 'Water Hauler';
-      const m = this.app.director.spawn({ faction: 'independents', tier: 1, pos: this.groundPoint(start.x, start.z), role: 'trader', name: 'Water Hauler', yaw: Math.PI / 2, ai: { path: this.path, passive: true, aggression: 0 } });
+      // never spawn the truck on top of the player
+      const pl = this.player!;
+      const sx = Math.hypot(pl.currPos.x - start.x, pl.currPos.z - start.z) < 20 ? start.x - 30 : start.x;
+      const m = this.app.director.spawn({ faction: 'independents', tier: 1, pos: this.groundPoint(sx, start.z), role: 'trader', name: 'Water Hauler', yaw: Math.PI / 2, ai: { path: this.path, passive: true, aggression: 0 } });
       m.tag.mission = this.id;
       m.tag.convoy = true;
       this.owned.add(m);

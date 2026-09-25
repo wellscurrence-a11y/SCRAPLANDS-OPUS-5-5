@@ -69,6 +69,15 @@ const scenarios = [
     },
   ],
   [
+    'story contracts',
+    'scripts/t/story.js',
+    (r) => {
+      for (const k of ['m_rats', 'm_rustwater', 'm_convoy', 'm_foundry', 'm_signal', 'm_fort', 'm_excavator']) check(`${k} completes`, r[k]?.done === true, r[k]);
+      check('convoy drives its route and gets ambushed', r.m_convoy?.convoyMoved > 5 && r.m_convoy?.ambushes >= 1, r.m_convoy);
+      check('excavator kill is recorded and pays its blueprint', r.m_excavator?.defeated?.includes('excavator') && r.m_excavator?.blueprint, r.m_excavator);
+    },
+  ],
+  [
     'app screens',
     'scripts/t/appflow.js',
     (r) => {
