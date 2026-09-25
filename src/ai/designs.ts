@@ -7,15 +7,16 @@ import type { MachineClass, MachineDesign, PaintPattern, PaintScheme } from '../
 import { DesignBuilder } from '../machines/designs';
 import { computeStats } from '../machines/stats';
 import { RNG } from '../core/random';
-import { getPart } from '../machines/parts/catalog';
+import { getPart, PART_MAP } from '../machines/parts/catalog';
 import { rarityIndex } from '../machines/types';
 
 type Pool = [id: string, weight: number, minTier: number][];
 
-function pick(rng: RNG, pool: Pool, tier: number, bonus = 0): string {
-  const ok = pool.filter(([, , t]) => t <= tier + bonus);
+/** Weighted pick from a tiered pool. Part pools skip ids missing from the catalogue. */
+function pick(rng: RNG, pool: Pool, tier: number, bonus = 0, parts = true): string {
+  const ok = pool.filter(([id, , t]) => t <= tier + bonus && (!parts || PART_MAP.has(id)));
   const list = ok.length ? ok : pool;
-  return rng.weighted(list, ([id, w, t]) => w * (1 + Math.max(0, t) * 0.4 * (t <= tier ? 1 : 0)) * (getPart(id) ? 1 : 0))[0];
+  return rng.weighted(list, ([, w, t]) => w * (1 + Math.max(0, t) * 0.4 * (t <= tier ? 1 : 0)))[0];
 }
 
 const SCRAP_COLORS = ['#8c3b1f', '#b5552b', '#6b6b3a', '#3f4f5f', '#9a7a2e', '#5e2e2e', '#7a4f2a', '#4b5a3a'];
@@ -328,7 +329,7 @@ export function pickRole(f: Faction, tier: number, rng: RNG, cls?: MachineClass)
           ? [['raider', 3, 0], ['truck', 3, 0], ['drone', 1, 0], ['scout', 1, 1]]
           : [['raider', 5, 0], ['truck', 3, 0], ['drone', 2, 0], ['scout', 2, 0], ['gunship', 0.6, 2], ['walker', 0.6, 3]];
   const filtered = cls ? pool.filter(([r]) => ROLE_CLASS[r] === cls) : pool;
-  return pick(rng, filtered.length ? filtered : pool, tier);
+  return pick(rng, filtered.length ? filtered : pool, tier, 0, false);
 }
 
 export function generateEnemy(opts: EnemyOptions): MachineDesign {

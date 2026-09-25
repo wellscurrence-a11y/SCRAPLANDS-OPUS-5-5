@@ -53,7 +53,7 @@ export class Garage {
   ghost: THREE.Object3D | null = null;
   ghostMirror: THREE.Object3D | null = null;
   highlight: THREE.Box3Helper | null = null;
-  comMarker: THREE.Mesh;
+  comMarker: THREE.Sprite;
   parked = new THREE.Group();
   mode: GarageMode = 'select';
   placing: { item: PartItem; def: PartDef; rot: number; tilt: number } | null = null;
@@ -88,7 +88,8 @@ export class Garage {
     const pmrem = new THREE.PMREMGenerator(renderer.renderer);
     this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     (this.scene as any).environmentIntensity = 0.35;
-    this.comMarker = new THREE.Mesh(new THREE.SphereGeometry(0.14, 16, 12), new THREE.MeshBasicMaterial({ color: 0xff3aa0, depthTest: false, transparent: true }));
+    this.comMarker = new THREE.Sprite(new THREE.SpriteMaterial({ map: comTexture(), depthTest: false, transparent: true, sizeAttenuation: false }));
+    this.comMarker.scale.setScalar(0.034);
     this.comMarker.renderOrder = 20;
     this.machineRoot.add(this.comMarker);
     // outside daylight backdrop
@@ -122,6 +123,28 @@ export class Garage {
     this.cancelPlacing();
     this.rebuild();
     this.buildParked();
+    this.frameMachine(true);
+  }
+
+  /** Fit the orbit distance to the machine and optionally snap the camera there. */
+  frameMachine(snap = false) {
+    if (this.stats && !this.stats.bounds.isEmpty()) {
+      const size = this.stats.bounds.getSize(new THREE.Vector3());
+      const radius = Math.max(1.2, size.length() * 0.5);
+      // the machine sits between the two side panels (~45% of the screen width)
+      if (this.renderer.width && this.renderer.height) this.camera.aspect = this.renderer.width / this.renderer.height;
+      const vfov = THREE.MathUtils.degToRad(this.camera.fov);
+      const hfov = 2 * Math.atan(Math.tan(vfov / 2) * Math.max(0.5, this.camera.aspect) * 0.45);
+      this.dist = clamp(radius / Math.sin(Math.min(vfov, hfov) / 2) * 0.9, 4, 30);
+      this.target.set(0, Math.max(0.8, size.y * 0.5), -1);
+    }
+    if (snap) {
+      this.yaw = 0.7;
+      this.pitch = 0.32;
+      const cp = Math.cos(this.pitch);
+      this.camera.position.copy(this.target).add(new THREE.Vector3(Math.sin(this.yaw) * cp, Math.sin(this.pitch), Math.cos(this.yaw) * cp).multiplyScalar(this.dist));
+      this.camera.lookAt(this.target);
+    }
   }
 
   // ------------------------------------------------------------------ building the visual
@@ -762,4 +785,29 @@ export class Garage {
     this.update(dt);
     this.renderer.render(this.scene, this.camera, dt);
   }
+}
+
+/** The classic quartered centre-of-mass symbol, drawn at a constant screen size. */
+function comTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d')!;
+  const r = 26;
+  g.translate(32, 32);
+  for (let i = 0; i < 4; i++) {
+    g.beginPath();
+    g.moveTo(0, 0);
+    g.arc(0, 0, r, (i * Math.PI) / 2, ((i + 1) * Math.PI) / 2);
+    g.closePath();
+    g.fillStyle = i % 2 ? '#ffffff' : '#ff3aa0';
+    g.fill();
+  }
+  g.lineWidth = 4;
+  g.strokeStyle = '#1a0a12';
+  g.beginPath();
+  g.arc(0, 0, r, 0, Math.PI * 2);
+  g.stroke();
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
 }

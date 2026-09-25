@@ -136,7 +136,7 @@ class RangeTutorial extends Mission {
       this.targets.push(m);
     }
   }
-  update() {
+  override update() {
     const home = getLocation('home');
     const range = new THREE.Vector3(home.x + 90, 0, home.z);
     if (!this.objectives[0].done) {
@@ -146,23 +146,23 @@ class RangeTutorial extends Mission {
     if (this.data.kills >= 3) this.objectives[1].done = true;
     if (this.profile.stats.partsSalvaged > this.data.salvagedStart) this.objectives[2].done = true;
   }
-  onKill(m: Machine) {
+  override onKill(m: Machine) {
     if (this.targets.includes(m)) {
       this.data.kills++;
       if (!this.objectives[0].done) this.objectives[0].done = true;
     }
   }
-  onEnterGarage() {
+  override onEnterGarage() {
     if (this.objectives[1].done && this.objectives[2].done) {
       this.objectives[3].done = true;
       this.complete();
     }
   }
-  onEnterWorld() {
+  override onEnterWorld() {
     // targets are cleared when entering the garage; respawn if we come back mid-mission
     this.targets = [];
   }
-  markers(): CompassMarker[] {
+  override markers(): CompassMarker[] {
     const home = getLocation('home');
     if (!this.objectives[1].done || !this.objectives[2].done) return [{ pos: new THREE.Vector3(home.x + 90, 0, home.z), label: 'Test range', kind: 'obj' }];
     return [{ pos: this.app.props.garageDoor, label: 'Workshop', kind: 'obj' }];
@@ -177,11 +177,11 @@ class FirstBuild extends Mission {
       { text: 'Deploy', done: false },
     ];
   }
-  onEnterGarage() {
+  override onEnterGarage() {
     this.objectives[0].done = true;
     this.data.snapshot = JSON.stringify(this.profile.machines.map((m) => m.parts.map((p) => p.uid)));
   }
-  onEnterWorld() {
+  override onEnterWorld() {
     if (!this.objectives[0].done) return;
     const now = JSON.stringify(this.profile.machines.map((m) => m.parts.map((p) => p.uid)));
     if (now !== this.data.snapshot) {
@@ -190,7 +190,7 @@ class FirstBuild extends Mission {
       this.complete();
     }
   }
-  markers(): CompassMarker[] {
+  override markers(): CompassMarker[] {
     return this.objectives[0].done ? [] : [{ pos: this.app.props.garageDoor, label: 'Workshop', kind: 'obj' }];
   }
 }
@@ -204,7 +204,7 @@ class ScrapRats extends Mission {
     this.data.kills = 0;
     this.data.spawned = false;
   }
-  update() {
+  override update() {
     const L = getLocation('overpass');
     const c = new THREE.Vector3(L.x, 0, L.z);
     if (!this.data.spawned && this.near(c, 260)) {
@@ -217,7 +217,7 @@ class ScrapRats extends Mission {
     if (this.data.spawned && this.near(c, 140)) this.objectives[0].done = true;
     this.objectives[1].text = `Destroy the raiding party (${this.data.kills}/3)`;
   }
-  onKill(m: Machine) {
+  override onKill(m: Machine) {
     if (m.tag.mission === this.id) {
       this.data.kills++;
       this.objectives[0].done = true;
@@ -227,11 +227,11 @@ class ScrapRats extends Mission {
       }
     }
   }
-  onEnterWorld() {
+  override onEnterWorld() {
     this.data.spawned = false;
     this.data.kills = 0;
   }
-  markers(): CompassMarker[] {
+  override markers(): CompassMarker[] {
     const L = getLocation('overpass');
     return [{ pos: new THREE.Vector3(L.x, 0, L.z), label: 'Raiders', kind: 'obj' }];
   }
@@ -244,17 +244,17 @@ class RoadToRustwater extends Mission {
       { text: 'Visit the Rustwater Salvage Market', done: false },
     ];
   }
-  onDiscover(l: string) {
+  override onDiscover(l: string) {
     if (l === 'rustwater') this.objectives[0].done = true;
   }
-  update() {
+  override update() {
     if (this.profile.flags.visitedMarket) {
       this.objectives[0].done = true;
       this.objectives[1].done = true;
       this.complete();
     }
   }
-  markers(): CompassMarker[] {
+  override markers(): CompassMarker[] {
     const L = getLocation('rustwater');
     return [{ pos: new THREE.Vector3(L.x - 18, 0, L.z - 14), label: 'Rustwater market', kind: 'obj' }];
   }
@@ -271,7 +271,7 @@ class ConvoyEscort extends Mission {
     ];
     this.data.ambush = 0;
   }
-  update() {
+  override update() {
     const R = getLocation('rustwater');
     const start = new THREE.Vector3(R.x - 70, 0, R.z + 10);
     if (!this.convoy && this.near(start, 90)) {
@@ -330,14 +330,14 @@ class ConvoyEscort extends Mission {
       this.complete();
     }
   }
-  onEnterWorld() {
+  override onEnterWorld() {
     if (this.convoy && !this.game.ctx.machines.includes(this.convoy)) {
       this.convoy = null;
       this.objectives[0].done = false;
       this.data.ambush = 0;
     }
   }
-  markers(): CompassMarker[] {
+  override markers(): CompassMarker[] {
     if (!this.convoy) {
       const R = getLocation('rustwater');
       return [{ pos: new THREE.Vector3(R.x - 70, 0, R.z + 10), label: 'Convoy', kind: 'obj' }];
@@ -354,7 +354,7 @@ class FoundrySabotage extends Mission {
       { text: 'Destroy the Scrapper generator rig', done: false },
     ];
   }
-  update() {
+  override update() {
     const L = getLocation('foundry');
     if (!this.rig && this.near(new THREE.Vector3(L.x, 0, L.z), 320)) {
       const d = buildGeneratorRig();
@@ -370,10 +370,10 @@ class FoundrySabotage extends Mission {
       this.complete();
     }
   }
-  onEnterWorld() {
+  override onEnterWorld() {
     if (this.rig && !this.game.ctx.machines.includes(this.rig)) this.rig = null;
   }
-  markers(): CompassMarker[] {
+  override markers(): CompassMarker[] {
     const L = getLocation('foundry');
     return [{ pos: this.rig ? this.rig.currPos : new THREE.Vector3(L.x, 0, L.z), label: 'Generator', kind: 'obj' }];
   }
@@ -388,10 +388,10 @@ class HelixSignal extends Mission {
     ];
     this.data.spawned = false;
   }
-  onDiscover(l: string) {
+  override onDiscover(l: string) {
     if (l === 'helix') this.objectives[0].done = true;
   }
-  update() {
+  override update() {
     const L = getLocation('helix');
     if (this.objectives[0].done && !this.data.spawned) {
       this.data.spawned = true;
@@ -399,7 +399,7 @@ class HelixSignal extends Mission {
     }
     if (this.data.spawned && ![...this.owned].some((m) => m.alive)) this.objectives[1].done = true;
   }
-  interaction(m: Machine) {
+  override interaction(m: Machine) {
     const L = getLocation('helix');
     if (this.objectives[1].done && !this.objectives[2].done && Math.hypot(m.currPos.x - L.x, m.currPos.z - L.z) < 22) {
       return {
@@ -412,10 +412,10 @@ class HelixSignal extends Mission {
     }
     return null;
   }
-  onEnterWorld() {
+  override onEnterWorld() {
     this.data.spawned = false;
   }
-  markers(): CompassMarker[] {
+  override markers(): CompassMarker[] {
     const L = getLocation('helix');
     // approximate until discovered
     if (!this.objectives[0].done) return [{ pos: new THREE.Vector3(L.x + 120, 0, L.z - 90), label: 'Signal (approx.)', kind: 'obj' }];
@@ -431,7 +431,7 @@ class FortRaid extends Mission {
       { text: 'Escape 500 m from the fort', done: false },
     ];
   }
-  update() {
+  override update() {
     const L = getLocation('fort');
     if (this.near(new THREE.Vector3(L.x, 0, L.z), 120)) this.objectives[0].done = true;
     if (this.objectives[1].done) {
@@ -447,7 +447,7 @@ class FortRaid extends Mission {
       }
     }
   }
-  interaction(m: Machine) {
+  override interaction(m: Machine) {
     const L = getLocation('fort');
     const h = new THREE.Vector3(L.x + 30, 0, L.z - 40);
     if (this.objectives[0].done && !this.objectives[1].done && Math.hypot(m.currPos.x - h.x, m.currPos.z - h.z) < 16) {
@@ -455,7 +455,7 @@ class FortRaid extends Mission {
     }
     return null;
   }
-  markers(): CompassMarker[] {
+  override markers(): CompassMarker[] {
     const L = getLocation('fort');
     if (!this.objectives[1].done) return [{ pos: new THREE.Vector3(L.x + 30, 0, L.z - 40), label: 'Hangar', kind: 'obj' }];
     return [{ pos: getLocationVec('home'), label: 'Escape', kind: 'obj' }];
@@ -471,7 +471,7 @@ class ExcavatorHunt extends Mission {
       { text: 'Salvage its components', done: false },
     ];
   }
-  update() {
+  override update() {
     const c = new THREE.Vector3(720, 0, -640);
     if (!this.boss && this.near(c, 240)) {
       this.boss = spawnExcavator(this.app, this.groundPoint(740, -655));
@@ -491,16 +491,16 @@ class ExcavatorHunt extends Mission {
       this.complete();
     }
   }
-  onEnterGarage() {
+  override onEnterGarage() {
     if (this.objectives[1].done) {
       this.objectives[2].done = true;
       this.complete();
     }
   }
-  onEnterWorld() {
+  override onEnterWorld() {
     if (this.boss && !this.game.ctx.machines.includes(this.boss)) this.boss = null;
   }
-  markers(): CompassMarker[] {
+  override markers(): CompassMarker[] {
     return [{ pos: this.boss ? this.boss.currPos : new THREE.Vector3(720, 0, -640), label: 'The Excavator', kind: 'obj' }];
   }
 }
@@ -574,7 +574,7 @@ class Job extends Mission {
     const a = Math.random() * Math.PI * 2;
     return this.groundPoint(this.loc.x + Math.cos(a) * r, this.loc.z + Math.sin(a) * r);
   }
-  update(dt: number) {
+  override update(dt: number) {
     const s = this.spec;
     const pl = this.player;
     if (!pl) return;
@@ -734,7 +734,7 @@ class Job extends Mission {
       this.gates.push(g);
     }
   }
-  interaction(m: Machine) {
+  override interaction(m: Machine) {
     if (this.spec.kind === 'capture' && this.target && this.target.alive && this.target.immobile && m.currPos.distanceTo(this.target.currPos) < 14) {
       return {
         label: `Commandeer ${this.target.name}`,
@@ -771,23 +771,23 @@ class Job extends Mission {
     }
     return null;
   }
-  cleanup() {
+  override cleanup() {
     super.cleanup();
     for (const g of this.gates) this.game.scene.remove(g);
     this.gates = [];
   }
-  onEnterWorld() {
+  override onEnterWorld() {
     this.target = null;
     this.wreck = null;
     this.wave = 0;
     this.data.started = false;
     this.gateIdx = 0;
   }
-  onEnterGarage() {
+  override onEnterGarage() {
     for (const g of this.gates) this.game.scene.remove(g);
     this.gates = [];
   }
-  markers(): CompassMarker[] {
+  override markers(): CompassMarker[] {
     const s = this.spec;
     if (s.kind === 'delivery') {
       const d = getLocation(s.dest!);
@@ -894,7 +894,7 @@ export class MissionSystem {
     }
     const rng = new RNG(day * 7919 + p.created % 1000);
     const kinds: JobKind[] = ['bounty', 'salvage', 'delivery', 'race', 'defend', 'capture', 'rescue'];
-    const locs = LOCATIONS.filter((l) => l.kind !== 'home' && l.id !== 'rustwater');
+    const locs = LOCATIONS.filter((l) => l.kind !== 'home' && l.id !== 'rustwater' && (!l.hidden || p.discovered.includes(l.id)));
     const rank = p.rank.level;
     this.board = [];
     for (let i = 0; i < 5; i++) {

@@ -29,4 +29,15 @@ describe('enemy generator', () => {
     console.log(report.slice(0, 40).join('\n'), '\nbad', bad);
     expect(bad).toBeLessThan(15);
   });
+
+  it('generates enemies without an explicit role (director path)', () => {
+    for (const f of ['scrappers', 'authority', 'helix', 'independents'] as const) {
+      for (const tier of [0, 1, 2, 3, 4]) {
+        for (let seed = 1; seed <= 4; seed++) {
+          const d = D.generateEnemy({ faction: f, tier, seed: seed * 31 + tier });
+          expect(d.parts.length, `${f}/t${tier}`).toBeGreaterThan(3);
+        }
+      }
+    }
+  });
 });

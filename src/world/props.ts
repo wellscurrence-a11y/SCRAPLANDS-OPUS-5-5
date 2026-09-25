@@ -570,7 +570,7 @@ export class WorldProps {
       const z = Math.sin(a) * 22 + 10;
       const y = s.gy(x, z);
       s.b.node('_tent', [x, y, z], [0, -a, 0]);
-      s.b.extrude('canvas', [[-2.5, 0], [2.5, 0], [0, 2.6]], 5, [0, 0, 0], 0.02);
+      s.b.extrude('canvas', [[-2.5, 0], [2.5, 0], [0, 2.6]], 5, [0, 0, 0], [0, 0, 0], 0.02);
       s.b.box('dark', 0.08, 2.8, 0.08, [0, 1.4, 2.5]);
       s.b.end();
       s.solid(x, y + 1.2, z, 5, 2.4, 5, -a, 'wood');
@@ -783,7 +783,7 @@ export class WorldProps {
     s.b.end();
     s.solid(10, s.gy(10, 12) + 0.4, 12, 26, 1, 6, 0.4, 'metal');
     s.b.node('_tail', [-28, s.gy(-28, 16) + 3, 16], [0, -0.2, 0.3]);
-    s.b.extrude('paint2', [[0, 0], [8, 0], [7, 8], [4, 8]], 0.4, [0, 0, 0], 0.05);
+    s.b.extrude('paint2', [[0, 0], [8, 0], [7, 8], [4, 8]], 0.4, [0, 0, 0], [0, 0, 0], 0.05);
     s.b.end();
     this.rubble(s, 0, 0, 30, 30, 'white');
     this.finish(s, this.mats.settle, 'airliner');

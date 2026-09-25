@@ -368,6 +368,21 @@ export class AudioEngine implements AudioAPI {
       case 'ui_click':
         this.tone(out, t, { type: 'square', f0: 900, f1: 600, dur: 0.04, peak: 0.08 });
         break;
+      case 'ui_coin':
+        this.tone(out, t, { type: 'triangle', f0: 1318, dur: 0.12, peak: 0.18 });
+        this.tone(out, t + 0.07, { type: 'triangle', f0: 1760, dur: 0.25, peak: 0.16 });
+        break;
+      case 'ui_bad':
+        this.tone(out, t, { type: 'square', f0: 220, f1: 160, dur: 0.18, peak: 0.1 });
+        break;
+      case 'boss_roar':
+        // a starting diesel the size of a building: grinding metal, low horn, air brakes
+        this.tone(out, t, { type: 'sawtooth', f0: 38, f1: 55, dur: 2.4, peak: 0.9, attack: 0.4 });
+        this.tone(out, t + 0.2, { type: 'sawtooth', f0: 57, f1: 82, dur: 2.0, peak: 0.5, attack: 0.3 });
+        this.burst(out, t, { dur: 2.2, f0: 400, f1: 120, type: 'lowpass', peak: 0.8, buf: this.brownBuf, attack: 0.3 });
+        for (let i = 0; i < 6; i++) this.metal(out, t + 0.3 + i * 0.28, 120 + Math.random() * 180, 0.5, 0.45);
+        this.burst(out, t + 2.1, { dur: 0.6, f0: 4000, type: 'highpass', peak: 0.3 });
+        break;
       default:
         this.burst(out, t, { dur: 0.1, f0: 1000, peak: 0.2 });
     }

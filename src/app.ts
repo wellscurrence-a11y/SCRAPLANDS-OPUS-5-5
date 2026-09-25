@@ -106,11 +106,13 @@ export class App {
     this.title = new TitleScreen(this.ui);
     loading.set(1, 'Ready');
     game.state = 'title';
+    game.manual = !!(window as any).__manual;
     game.start();
     // warm up shaders by rendering a few frames at the title
     this.showTitle();
     setTimeout(() => loading.done(), 400);
     (window as any).__app = this;
+    (window as any).__game = game;
   }
 
   applySettings() {
@@ -341,6 +343,8 @@ export class App {
     if (!p) return [];
     const out = defaultMarkers(this.game, p.discovered);
     out.push(...this.missions.markers());
+    const wp = this.map?.waypoint;
+    if (wp) out.push({ pos: wp, label: 'Waypoint', kind: 'loot' });
     return out;
   }
 
@@ -354,7 +358,7 @@ export class App {
     }
     if (source === this.game.player) {
       p.stats.kills++;
-      const d = p.machines.find((x) => x.id === source.design.id);
+      const d = p.machines.find((x) => x.id === source!.design.id);
       if (d) d.kills = (d.kills ?? 0) + 1;
       const tier = m.tag.tier ?? 1;
       const xp = Math.round(40 + m.stats.mass / 40 + tier * 20);
@@ -479,6 +483,7 @@ export class App {
     if (this.mode !== 'world' || !this.profile) return;
     const p = this.profile;
     p.playTime += dt;
+    this.props.update(dt);
     // research progresses in real time
     if (p.research.active) {
       const t = TECH.find((x) => x.id === p.research.active);
@@ -606,6 +611,15 @@ export function bootApp() {
       if (app.mode === 'world' && !app['overlay'] && input.enabled) input.requestPointerLock();
     });
   };
-  app.start().then(canvasLock);
+  app
+    .start()
+    .then(() => {
+      canvasLock();
+      (window as any).__ready = true;
+    })
+    .catch((e) => {
+      console.error(e);
+      document.body.insertAdjacentHTML('beforeend', `<pre style="color:#f66;position:fixed;top:40px;left:10px;z-index:99;white-space:pre-wrap">${e?.stack ?? e}</pre>`);
+    });
   return app;
 }
