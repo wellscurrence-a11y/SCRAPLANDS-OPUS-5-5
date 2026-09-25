@@ -57,6 +57,7 @@ export class App {
   private titleT = 0;
   private fade: HTMLElement;
   private dirTick = 0;
+  private slowT = 0;
 
   constructor() {
     this.ui = document.getElementById('ui')!;
@@ -567,7 +568,23 @@ export class App {
     // pointer lock on click happens via canvas listener
     this.audio.update(dt);
     game.chase.baseFov = this.settings.fov;
+    this.adaptQuality(dt);
     void clamp;
+  }
+
+  /** If the device can't keep up, step graphics down once per slow spell (only while quality is automatic). */
+  private adaptQuality(dt: number) {
+    const s = this.settings;
+    if (!s.autoQuality || s.quality === 'low' || this.game.manual || dt <= 0) return;
+    const fps = this.game.fps;
+    this.slowT = fps < 26 ? this.slowT + dt : Math.max(0, this.slowT - dt * 2);
+    if (this.slowT < 6) return;
+    this.slowT = 0;
+    const order = ['low', 'medium', 'high', 'ultra'] as const;
+    s.quality = order[Math.max(0, order.indexOf(s.quality) - 1)];
+    saveSettings(s);
+    this.applySettings();
+    this.hud.notify(`Graphics lowered to ${s.quality.toUpperCase()} for smoother play — change it any time in Settings (Esc)`, 'info');
   }
 
   private findInteraction(m: Machine): { label: string; action: () => void } | null {

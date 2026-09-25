@@ -4,6 +4,16 @@ A 3D open-world vehicle-building action RPG that runs in the browser. You play a
 
 It has one persistent save and no permadeath. Every machine and part you own is kept.
 
+## Play in your browser
+
+**https://wellscurrence-a11y.github.io/SCRAPLANDS-OPUS-5-5/**
+
+Works in desktop Chrome, Edge and Firefox, including Chromebooks. Your progress is saved in the browser automatically. Use **Export save** on the title screen to back it up.
+
+The game is rebuilt and published automatically on every push, by `.github/workflows/deploy-pages.yml`.
+
+## Run it locally
+
 ```bash
 npm install
 npm run dev        # http://localhost:5173

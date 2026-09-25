@@ -5,6 +5,8 @@ import type { Quality } from '../render/renderer';
 
 export interface Settings {
   quality: Quality;
+  /** Quality was picked for this device (not by the player) and may be lowered if the game runs slowly. */
+  autoQuality: boolean;
   volume: number;
   music: number;
   sensitivity: number;
@@ -14,8 +16,19 @@ export interface Settings {
 
 const SETTINGS_KEY = 'scraplands.settings';
 
+/** A starting quality for this device: Chromebooks and small laptops get lighter settings. */
+export function detectQuality(): Quality {
+  const nav = navigator as Navigator & { deviceMemory?: number };
+  const cores = nav.hardwareConcurrency || 4;
+  const mem = nav.deviceMemory ?? 8;
+  const chromeOS = /\bCrOS\b/.test(nav.userAgent);
+  if (cores <= 4 || mem <= 4) return 'low';
+  if (chromeOS || cores <= 8) return 'medium';
+  return 'high';
+}
+
 export function loadSettings(): Settings {
-  const def: Settings = { quality: 'high', volume: 0.8, music: 0.5, sensitivity: 1, invertY: false, fov: 68 };
+  const def: Settings = { quality: detectQuality(), autoQuality: true, volume: 0.8, music: 0.5, sensitivity: 1, invertY: false, fov: 68 };
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (raw) return { ...def, ...JSON.parse(raw) };
@@ -98,6 +111,7 @@ export function settingsPanel(s: Settings, onChange: (s: Settings) => void): HTM
   const quality = h('select', {}, ...(['low', 'medium', 'high', 'ultra'] as Quality[]).map((q) => h('option', { value: q, selected: s.quality === q }, q.toUpperCase()))) as HTMLSelectElement;
   quality.onchange = () => {
     s.quality = quality.value as Quality;
+    s.autoQuality = false;
     onChange(s);
   };
   const slider = (key: 'volume' | 'music' | 'sensitivity' | 'fov', min: number, max: number, step: number) => {
