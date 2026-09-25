@@ -33,6 +33,8 @@ const HOSTILITY: Record<string, Faction[]> = {
   neutral: [],
 };
 
+const _vp = new THREE.Matrix4();
+
 export interface Hooks {
   fixed: ((dt: number) => void)[];
   frame: ((dt: number) => void)[];
@@ -96,6 +98,7 @@ export class Game {
     this.ctx = {
       scene: this.scene,
       camera: this.camera,
+      viewFrustum: new THREE.Frustum(),
       physics: this.physics,
       terrain: this.terrain,
       fx: this.fx,
@@ -222,6 +225,9 @@ export class Game {
   /** Visual update with interpolation. */
   frameUpdate(dt: number, alpha: number) {
     const ctx = this.ctx;
+    this.camera.updateMatrixWorld();
+    _vp.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse);
+    ctx.viewFrustum.setFromProjectionMatrix(_vp);
     for (const m of ctx.machines) m.update(dt, alpha);
     ctx.debris.update(dt);
     ctx.projectiles.update(dt);

@@ -3,7 +3,11 @@ import './menus.css';
 import { h, clear } from './dom';
 import type { Quality } from '../render/renderer';
 
+/** Bump when defaults change in a way that should re-apply to saved settings. */
+const SETTINGS_VERSION = 2;
+
 export interface Settings {
+  version: number;
   quality: Quality;
   /** Quality was picked for this device (not by the player) and may be lowered if the game runs slowly. */
   autoQuality: boolean;
@@ -30,14 +34,23 @@ export function detectQuality(): Quality {
 }
 
 export function loadSettings(): Settings {
-  const def: Settings = { quality: detectQuality(), autoQuality: true, volume: 0.8, music: 0.5, sensitivity: 1, invertY: false, fov: 68, showPerf: false };
+  const def: Settings = { version: SETTINGS_VERSION, quality: detectQuality(), autoQuality: true, volume: 0.8, music: 0.5, sensitivity: 1, invertY: false, fov: 68, showPerf: false };
+  let s = def;
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
-    if (raw) return { ...def, ...JSON.parse(raw) };
+    if (raw) {
+      const saved = JSON.parse(raw);
+      s = { ...def, ...saved };
+      // settings saved before graphics were tuned per device: re-detect quality once, keep the rest
+      if (!saved.version || saved.version < SETTINGS_VERSION) s = { ...s, version: SETTINGS_VERSION, quality: def.quality, autoQuality: true };
+    }
   } catch {
     /* ignore */
   }
-  return def;
+  // ?quality=low|medium|high|ultra forces a preset for this visit (handy for testing a device)
+  const forced = new URLSearchParams(location.search).get('quality');
+  if (forced && ['low', 'medium', 'high', 'ultra'].includes(forced)) s = { ...s, quality: forced as Quality, autoQuality: false };
+  return s;
 }
 
 export function saveSettings(s: Settings) {

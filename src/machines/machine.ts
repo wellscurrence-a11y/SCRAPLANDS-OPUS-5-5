@@ -65,6 +65,7 @@ export interface PartHit {
 }
 
 const _v = new THREE.Vector3();
+const _sphere = new THREE.Sphere();
 const _v2 = new THREE.Vector3();
 const _o = new THREE.Vector3();
 const _d = new THREE.Vector3();
@@ -94,6 +95,8 @@ export class Machine {
   immobile = false;
   deathTime = 0;
   killedBy: Machine | null = null;
+  /** Why the machine stopped: 'pilot', 'structural', 'bailed' (abandoned intact), … */
+  deathCause: string | null = null;
   // Systems
   energy = 0;
   energyCap = 40;
@@ -537,8 +540,17 @@ export class Machine {
     this.root.position.lerpVectors(this.prevPos, this.currPos, alpha);
     this.root.quaternion.slerpQuaternions(this.prevQuat, this.currQuat, alpha);
     this.mats.uniforms.uRootInv.value.copy(this.root.matrixWorld).invert();
-    this.controller.update(dt);
-    for (const w of this.weapons) w.update(dt);
+    // Wheel/leg poses and weapon animation are visual only: a quarter rate when off-screen or far
+    this.visualDt += dt;
+    const cam = this.ctx.camera.position;
+    _sphere.center.copy(this.root.position);
+    _sphere.radius = this.boundRadius + 2;
+    const seen = this.isPlayer || (this.root.position.distanceToSquared(cam) < 250 * 250 && this.ctx.viewFrustum.intersectsSphere(_sphere));
+    if (seen || ++this.visualTick % 4 === 0) {
+      this.controller.update(this.visualDt);
+      for (const w of this.weapons) w.update(this.visualDt);
+      this.visualDt = 0;
+    }
     this.updateEffects(dt);
     // Lights
     const on = this.input.lights && this.alive;
@@ -761,6 +773,7 @@ export class Machine {
     this.deathTime = this.ctx.time;
     if (!source && this.lastAttacker && this.ctx.time - this.lastAttackTime < 30) source = this.lastAttacker;
     this.killedBy = source;
+    this.deathCause = cause;
     if (cause === 'bailed') {
       // Pilot abandoned the machine: no explosion, everything left intact for salvage.
       this.mats.setLights(false);
@@ -886,6 +899,8 @@ export class Machine {
 
   /** Set once the physics body is freed; the machine must not be touched after that. */
   disposed = false;
+  private visualDt = 0;
+  private visualTick = 0;
   /** Rigid meshes merged per material (fewer draw calls); null when batching is off. */
   batch: MachineBatch | null = null;
 

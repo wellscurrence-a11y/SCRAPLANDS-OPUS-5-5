@@ -699,11 +699,13 @@ class Job extends Mission {
         this.target = this.spawnEnemy({ faction: 'scrappers', tier: s.tier, pos: this.spawnPoint(), role: Math.random() < 0.5 ? 'raider' : 'truck', name: this.data.name });
       }
       if (this.target) {
-        if (!this.target.alive && !this.target.tag.captured) {
+        // a pilot who bails out leaves the machine intact: still yours to take
+        const abandoned = this.target.deathCause === 'bailed' && !this.target.tag.stripped;
+        if (!this.target.alive && !abandoned && !this.target.tag.captured) {
           this.fail('The target was destroyed — it had to be taken intact.');
           return;
         }
-        this.objectives[0].done = this.target.immobile;
+        this.objectives[0].done = this.target.immobile || abandoned;
       }
     } else if (s.kind === 'rescue') {
       const c = new THREE.Vector3(this.loc.x + 20, 0, this.loc.z + 10);
@@ -753,9 +755,11 @@ class Job extends Mission {
     }
   }
   override interaction(m: Machine) {
-    if (this.spec.kind === 'capture' && this.target && this.target.alive && this.target.immobile && m.currPos.distanceTo(this.target.currPos) < 14) {
+    const t0 = this.target;
+    const takeable = !!t0 && (t0.alive || (t0.deathCause === 'bailed' && !t0.tag.stripped && !t0.tag.captured)) && (t0.immobile || !t0.alive);
+    if (this.spec.kind === 'capture' && t0 && takeable && m.currPos.distanceTo(t0.currPos) < 14) {
       return {
-        label: `Commandeer ${this.target.name}`,
+        label: `Commandeer ${t0.name}`,
         action: () => {
           const t = this.target!;
           t.tag.captured = true;

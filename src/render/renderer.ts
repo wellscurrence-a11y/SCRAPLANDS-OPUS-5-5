@@ -34,13 +34,15 @@ export interface QualityPreset {
   smallPartDistance: number;
   /** Cap on simultaneous roaming/zone enemies. */
   maxEnemies: number;
+  /** Frosted-glass HUD panels (CSS backdrop blur re-runs over the live canvas every frame). */
+  uiBlur: boolean;
 }
 
 export const QUALITY: Record<Quality, QualityPreset> = {
-  low: { pixelRatio: 0.85, minScale: 0.55, maxPixels: 0.9e6, shadowSize: 1024, shadowRange: 55, bloom: false, msaa: 0, post: false, particles: 0.5, detail: 0, terrainShadows: false, lodScale: 0.6, scatterDistance: 0.6, scatterDensity: 0.5, smallPartDistance: 40, maxEnemies: 6 },
-  medium: { pixelRatio: 1, minScale: 0.65, maxPixels: 1.6e6, shadowSize: 2048, shadowRange: 85, bloom: true, msaa: 0, post: true, particles: 0.8, detail: 1, terrainShadows: true, lodScale: 0.8, scatterDistance: 0.8, scatterDensity: 0.75, smallPartDistance: 70, maxEnemies: 8 },
-  high: { pixelRatio: 1, minScale: 0.75, maxPixels: 3.7e6, shadowSize: 4096, shadowRange: 120, bloom: true, msaa: 4, post: true, particles: 1, detail: 1, terrainShadows: true, lodScale: 1, scatterDistance: 1, scatterDensity: 1, smallPartDistance: 120, maxEnemies: 9 },
-  ultra: { pixelRatio: 1.5, minScale: 0.9, maxPixels: 8.3e6, shadowSize: 4096, shadowRange: 150, bloom: true, msaa: 4, post: true, particles: 1.25, detail: 1, terrainShadows: true, lodScale: 1.3, scatterDistance: 1.3, scatterDensity: 1, smallPartDistance: 200, maxEnemies: 9 },
+  low: { pixelRatio: 0.85, minScale: 0.55, maxPixels: 0.9e6, shadowSize: 1024, shadowRange: 55, bloom: false, msaa: 0, post: false, particles: 0.5, detail: 0, terrainShadows: false, lodScale: 0.6, scatterDistance: 0.6, scatterDensity: 0.5, smallPartDistance: 40, maxEnemies: 6, uiBlur: false },
+  medium: { pixelRatio: 1, minScale: 0.65, maxPixels: 1.6e6, shadowSize: 2048, shadowRange: 85, bloom: true, msaa: 0, post: true, particles: 0.8, detail: 1, terrainShadows: true, lodScale: 0.8, scatterDistance: 0.8, scatterDensity: 0.75, smallPartDistance: 70, maxEnemies: 8, uiBlur: false },
+  high: { pixelRatio: 1, minScale: 0.75, maxPixels: 3.7e6, shadowSize: 4096, shadowRange: 120, bloom: true, msaa: 4, post: true, particles: 1, detail: 1, terrainShadows: true, lodScale: 1, scatterDistance: 1, scatterDensity: 1, smallPartDistance: 120, maxEnemies: 9, uiBlur: true },
+  ultra: { pixelRatio: 1.5, minScale: 0.9, maxPixels: 8.3e6, shadowSize: 4096, shadowRange: 150, bloom: true, msaa: 4, post: true, particles: 1.25, detail: 1, terrainShadows: true, lodScale: 1.3, scatterDistance: 1.3, scatterDensity: 1, smallPartDistance: 200, maxEnemies: 9, uiBlur: true },
 };
 
 /** Colour grade shared by both paths (applied in display space). */

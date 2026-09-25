@@ -40,6 +40,8 @@ export interface AudioAPI {
 export interface WorldContext {
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
+  /** Camera view frustum as of the last rendered frame (for cheap visibility tests). */
+  viewFrustum: THREE.Frustum;
   physics: Physics;
   terrain: Terrain;
   fx: FX;

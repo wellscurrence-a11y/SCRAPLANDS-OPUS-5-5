@@ -12,6 +12,26 @@ Works in desktop Chrome, Edge and Firefox, including Chromebooks. Your progress 
 
 The game is rebuilt and published automatically on every push, by `.github/workflows/deploy-pages.yml`.
 
+### Performance and Chromebooks
+
+The first launch picks a graphics preset for your device. Chromebooks and 4-core or 4 GB machines start on **Low**. You can change it any time under **Esc → Settings**.
+
+Low is built for budget Chromebooks (Celeron or MediaTek, 4 GB):
+
+- lighter geometry, with the workshop still showing full detail;
+- merged machine draw calls;
+- no post-processing passes;
+- lighter terrain and sky shaders;
+- solid (not blurred) HUD panels;
+- dynamic resolution that holds the frame rate.
+
+If the game still runs slowly while the preset is automatic, it steps down on its own.
+
+Two extras help when testing a device:
+
+- Turn on **Show FPS** in Settings to see the frame rate, frame time and render scale.
+- Add `?quality=low`, `?quality=medium`, `?quality=high` or `?quality=ultra` to the URL to force a preset for one visit.
+
 ## Run it locally
 
 ```bash

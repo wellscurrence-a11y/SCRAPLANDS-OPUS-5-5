@@ -45,6 +45,7 @@ export class Hud {
   private el: Record<string, HTMLElement> = {};
   private schem: HTMLCanvasElement;
   private schemCtx: CanvasRenderingContext2D;
+  private schemT = 0;
   private notes: HTMLElement;
   private targetMachine: Machine | null = null;
   private targetTime = 0;
@@ -299,7 +300,12 @@ export class Hud {
       setText(E.vBoost, `${Math.round(t.boost * 100)}%`);
     }
     this.updateWeapons(m);
-    this.drawSchematic(m);
+    // the integrity schematic is a 2D canvas: ~8 redraws a second is plenty
+    this.schemT -= dt;
+    if (this.schemT <= 0) {
+      this.schemT = 0.12;
+      this.drawSchematic(m);
+    }
     this.updateTarget(m);
     // warnings
     const warns = [...(t.warnings ?? [])];

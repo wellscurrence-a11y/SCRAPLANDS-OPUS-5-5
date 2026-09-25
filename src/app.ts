@@ -126,6 +126,7 @@ export class App {
     const s = this.settings;
     if (this.game.renderer.quality !== s.quality) this.game.renderer.setQuality(s.quality);
     this.game.applyPreset();
+    document.documentElement.classList.toggle('lite-ui', !this.game.renderer.preset.uiBlur);
     input.sensitivity = s.sensitivity;
     input.invertY = s.invertY;
     this.game.chase.baseFov = s.fov;

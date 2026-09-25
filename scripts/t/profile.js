@@ -2,7 +2,7 @@
 // Usage: URL=http://localhost:5173/ node scripts/harness.mjs scripts/t/profile.js screenshots/prof
 const app = window.__app;
 const P = await import('/src/gameplay/profile.ts');
-const q = window.__profileQuality ?? 'low';
+const q = new URLSearchParams(location.search).get('quality') ?? 'low';
 localStorage.clear();
 app.settings.quality = q;
 app.settings.autoQuality = false;
