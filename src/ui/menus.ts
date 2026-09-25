@@ -154,6 +154,7 @@ export function controlsHelp(): HTMLElement {
     ['W A S D', 'Drive / fly / walk'],
     ['Mouse', 'Aim (turrets follow your crosshair)'],
     ['LMB / RMB / MMB', 'Fire weapon groups 1 / 2 / 3'],
+    ['Hold 1 / 2 / 3', 'Fire weapon groups (touchpads)'],
     ['Space', 'Handbrake · Climb · Jump jets'],
     ['C / Ctrl', 'Descend (aircraft)'],
     ['Shift', 'Boost · Run'],

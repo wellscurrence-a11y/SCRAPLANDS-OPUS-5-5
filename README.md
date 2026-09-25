@@ -26,6 +26,7 @@ npm run dev        # http://localhost:5173
 | W A S D | Drive / fly / walk |
 | Mouse | Aim (turrets follow the crosshair) |
 | LMB / RMB / MMB | Fire weapon groups 1 / 2 / 3 |
+| Hold 1 / 2 / 3 | Fire weapon groups 1 / 2 / 3 (handy on a touchpad) |
 | Space | Handbrake · climb · jump jets |
 | C / Ctrl | Descend (aircraft) |
 | Shift | Boost · run |

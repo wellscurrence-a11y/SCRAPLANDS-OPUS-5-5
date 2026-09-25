@@ -16,9 +16,10 @@ export class PlayerControl {
     const side = i.axis('left', 'right');
     mi.aimPoint = cam.aimPoint.clone();
     mi.lockTarget = cam.aimMachine && cam.aimPart ? { machine: cam.aimMachine, part: cam.aimPart } : mi.lockTarget && mi.lockTarget.machine.alive ? mi.lockTarget : null;
-    mi.fire[0] = i.held('fire1');
-    mi.fire[1] = i.held('fire2');
-    mi.fire[2] = i.keyHeld('Mouse1');
+    // mouse buttons, or hold 1 / 2 / 3 (touchpads have no middle button)
+    mi.fire[0] = i.held('fire1') || i.held('group1');
+    mi.fire[1] = i.held('fire2') || i.held('group2');
+    mi.fire[2] = i.keyHeld('Mouse1') || i.held('group3');
     mi.boost = i.held('boost');
     if (i.pressed('lights')) this.lights = !this.lights;
     mi.lights = this.lights;
