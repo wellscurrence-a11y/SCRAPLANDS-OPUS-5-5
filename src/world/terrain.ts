@@ -143,6 +143,24 @@ export class Terrain {
     if (this.auxTex) this.auxTex.needsUpdate = true;
   }
 
+  private lods: THREE.LOD[] = [];
+
+  /** Scale LOD switch distances (lower = coarser terrain sooner), toggle terrain shadows and the light shader. */
+  setQuality(lodScale: number, castShadows: boolean, lightShader = false) {
+    const defs = (this.material.defines ??= {});
+    if (lightShader !== ('TERRAIN_LOW' in defs)) {
+      if (lightShader) defs.TERRAIN_LOW = '';
+      else delete defs.TERRAIN_LOW;
+      this.material.needsUpdate = true;
+    }
+    for (const lod of this.lods) {
+      lod.levels.forEach((lv, i) => {
+        lv.distance = LOD_DIST[i] * lodScale;
+        lv.object.castShadow = castShadows && i <= 1;
+      });
+    }
+  }
+
   buildMeshes(anisotropy = 8) {
     this.splatTex = new THREE.DataTexture(this.data.splat, GRID, GRID, THREE.RGBAFormat);
     this.splatTex.magFilter = THREE.LinearFilter;
@@ -173,6 +191,7 @@ export class Terrain {
         lod.autoUpdate = true;
         lod.name = `terrain_${cx}_${cz}`;
         this.group.add(lod);
+        this.lods.push(lod);
       }
     }
     this.group.add(this.buildBackdrop());
@@ -334,11 +353,16 @@ function createTerrainMaterial(
         vec3 tDetailN = vec3(0.0);
         float tRough = 0.9;
         vec3 triNoise(vec3 p, vec3 n, float scale) {
+        #ifdef TERRAIN_LOW
+          // budget GPUs: one top-down sample, offset by height so cliffs aren't flat smears
+          return texture2D(uNoise, p.xz * scale + p.y * scale * 0.7).rgb;
+        #else
           vec3 w = pow(abs(n), vec3(4.0)); w /= (w.x + w.y + w.z);
           vec4 a = texture2D(uNoise, p.yz * scale);
           vec4 b = texture2D(uNoise, p.xz * scale);
           vec4 c = texture2D(uNoise, p.xy * scale);
           return (a * w.x + b * w.y + c * w.z).rgb;
+        #endif
         }`,
       )
       .replace(
@@ -425,8 +449,19 @@ function createTerrainMaterial(
         // wet darkening
         col *= mix(1.0, 0.6, uWetness * (1.0 - sandW * 0.5));
         tRough = mix(tRough, 0.35, uWetness * 0.8);
-        // detail normal: triplanar
+        // detail normal: triplanar (a single planar sample on budget GPUs)
         vec3 dn;
+        #ifdef TERRAIN_LOW
+        {
+          float sc = mix(0.35, 0.18, rockW);
+          vec4 b4 = texture2D(uDetailN, p.xz * sc + p.y * sc * 0.7);
+          vec3 b = b4.xyz * 2.0 - 1.0;
+          dn = vec3(b.x, 0.0, b.y);
+          float strength = mix(0.8, 1.5, rockW) * mix(1.0, 0.35, sp.r) * mix(1.0, 0.55, sandW);
+          tDetailN = dn * strength;
+          col *= mix(0.78, 1.12, b4.a) * mix(1.0, 0.92, sp.r);
+        }
+        #else
         {
           vec3 w = pow(abs(wn), vec3(4.0)); w /= (w.x + w.y + w.z);
           float sc = mix(0.35, 0.18, rockW);
@@ -446,6 +481,7 @@ function createTerrainMaterial(
           float pebbles = smoothstep(0.7, 0.85, texture2D(uNoise, p.xz * 0.9).r) * (1.0 - sandW) * (1.0 - sp.r) * (1.0 - rockW);
           col = mix(col, col * vec3(0.72, 0.68, 0.64), pebbles * 0.6);
         }
+        #endif
         diffuseColor.rgb = col;
         `,
       )

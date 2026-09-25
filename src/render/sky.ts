@@ -159,7 +159,12 @@ export class Sky {
         }
         float fbm(vec2 p) {
           float s = 0.0, a = 0.5;
+        #ifdef SKY_LOW
+          for (int i = 0; i < 3; i++) { s += a * vnoise(p); p = p * 2.03 + vec2(1.7, 9.2); a *= 0.5; }
+          s += 0.09; // keep the mean of the dropped octaves so cloud cover matches
+        #else
           for (int i = 0; i < 5; i++) { s += a * vnoise(p); p = p * 2.03 + vec2(1.7, 9.2); a *= 0.5; }
+        #endif
           return s;
         }
         void main() {
@@ -217,6 +222,15 @@ export class Sky {
     this.mesh.frustumCulled = false;
     this.mesh.renderOrder = -1000;
     this.mesh.name = 'sky';
+  }
+
+  /** Cheaper cloud noise for budget GPUs. */
+  setLight(on: boolean) {
+    const defs = this.material.defines;
+    if (on === ('SKY_LOW' in defs)) return;
+    if (on) defs.SKY_LOW = '';
+    else delete defs.SKY_LOW;
+    this.material.needsUpdate = true;
   }
 
   update(atm: AtmosphereState, cameraPos: THREE.Vector3, overcast: number, dust: number, cloudCover: number) {

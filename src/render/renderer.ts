@@ -9,22 +9,63 @@ import { installFogChunks, G } from './globals';
 export type Quality = 'low' | 'medium' | 'high' | 'ultra';
 
 export interface QualityPreset {
+  /** Maximum render scale (multiplied by the display's pixel ratio, capped at 2). */
   pixelRatio: number;
+  /** Floor for dynamic resolution scaling. */
+  minScale: number;
+  /** Upper bound on rendered pixels, so high-DPI screens don't explode the fill cost. */
+  maxPixels: number;
   shadowSize: number;
   shadowRange: number;
   bloom: boolean;
   msaa: number;
+  /** Full post chain (bloom, grade pass). false = render straight to the screen, grading in the tone mapper. */
+  post: boolean;
   particles: number; // multiplier
-  drawDistance: number;
-  propDensity: number;
+  /** Geometry detail for world machines and props: 0 light, 1 full. */
+  detail: number;
+  terrainShadows: boolean;
+  /** Terrain LOD switch distance multiplier. */
+  lodScale: number;
+  /** View distance multiplier for rocks and plants. */
+  scatterDistance: number;
+  scatterDensity: number;
+  /** Beyond this distance (m) machines hide their small moving parts (shocks, links). */
+  smallPartDistance: number;
+  /** Cap on simultaneous roaming/zone enemies. */
+  maxEnemies: number;
 }
 
 export const QUALITY: Record<Quality, QualityPreset> = {
-  low: { pixelRatio: 0.75, shadowSize: 1024, shadowRange: 70, bloom: false, msaa: 0, particles: 0.5, drawDistance: 900, propDensity: 0.5 },
-  medium: { pixelRatio: 1, shadowSize: 2048, shadowRange: 95, bloom: true, msaa: 0, particles: 0.8, drawDistance: 1300, propDensity: 0.75 },
-  high: { pixelRatio: 1, shadowSize: 4096, shadowRange: 120, bloom: true, msaa: 4, particles: 1, drawDistance: 1800, propDensity: 1 },
-  ultra: { pixelRatio: 1.5, shadowSize: 4096, shadowRange: 150, bloom: true, msaa: 4, particles: 1.25, drawDistance: 2400, propDensity: 1.25 },
+  low: { pixelRatio: 0.85, minScale: 0.55, maxPixels: 0.9e6, shadowSize: 1024, shadowRange: 55, bloom: false, msaa: 0, post: false, particles: 0.5, detail: 0, terrainShadows: false, lodScale: 0.6, scatterDistance: 0.6, scatterDensity: 0.5, smallPartDistance: 40, maxEnemies: 6 },
+  medium: { pixelRatio: 1, minScale: 0.65, maxPixels: 1.6e6, shadowSize: 2048, shadowRange: 85, bloom: true, msaa: 0, post: true, particles: 0.8, detail: 1, terrainShadows: true, lodScale: 0.8, scatterDistance: 0.8, scatterDensity: 0.75, smallPartDistance: 70, maxEnemies: 8 },
+  high: { pixelRatio: 1, minScale: 0.75, maxPixels: 3.7e6, shadowSize: 4096, shadowRange: 120, bloom: true, msaa: 4, post: true, particles: 1, detail: 1, terrainShadows: true, lodScale: 1, scatterDistance: 1, scatterDensity: 1, smallPartDistance: 120, maxEnemies: 9 },
+  ultra: { pixelRatio: 1.5, minScale: 0.9, maxPixels: 8.3e6, shadowSize: 4096, shadowRange: 150, bloom: true, msaa: 4, post: true, particles: 1.25, detail: 1, terrainShadows: true, lodScale: 1.3, scatterDistance: 1.3, scatterDensity: 1, smallPartDistance: 200, maxEnemies: 9 },
 };
+
+/** Colour grade shared by both paths (applied in display space). */
+const GRADE = { saturation: 1.14, contrast: 1.1, tint: [1.02, 1.0, 0.97] as const };
+
+/**
+ * Tone mapper for the direct (no post) path: ACES plus the same grade the post chain applies,
+ * so LOW looks like the other presets without extra full-screen passes.
+ */
+function installGradedToneMapping() {
+  const chunk = THREE.ShaderChunk.tonemapping_pars_fragment;
+  const stub = 'vec3 CustomToneMapping( vec3 color ) { return color; }';
+  if (!chunk.includes(stub)) return;
+  THREE.ShaderChunk.tonemapping_pars_fragment = chunk.replace(
+    stub,
+    `vec3 CustomToneMapping( vec3 color ) {
+      color = ACESFilmicToneMapping( color );
+      vec3 d = pow( max( color, 0.0 ), vec3( 1.0 / 2.2 ) ) * vec3( ${GRADE.tint.map((v) => v.toFixed(3)).join(', ')} );
+      float l = dot( d, vec3( 0.2126, 0.7152, 0.0722 ) );
+      d = mix( vec3( l ), d, ${GRADE.saturation.toFixed(3)} );
+      d = ( d - 0.5 ) * ${GRADE.contrast.toFixed(3)} + 0.5;
+      return pow( clamp( d, 0.0, 1.0 ), vec3( 2.2 ) );
+    }`,
+  );
+}
 
 const GradeShader = {
   uniforms: {
@@ -34,9 +75,9 @@ const GradeShader = {
     uGrain: { value: 0.035 },
     uDamage: { value: 0 },
     uAberration: { value: 0.0 },
-    uSaturation: { value: 1.14 },
-    uContrast: { value: 1.1 },
-    uTint: { value: new THREE.Color(1.02, 1.0, 0.97) },
+    uSaturation: { value: GRADE.saturation },
+    uContrast: { value: GRADE.contrast },
+    uTint: { value: new THREE.Color(...GRADE.tint) },
     uFlash: { value: 0 },
     uFade: { value: 0 },
   },
@@ -92,9 +133,17 @@ export class Renderer {
   scene: THREE.Scene | null = null;
   camera: THREE.PerspectiveCamera | null = null;
   postEnabled = true;
+  /** Dynamic resolution: fraction of the preset's render scale currently used. */
+  dynScale = 1;
+  dynamicResolution = true;
+  private frameAvg = 16.7;
+  private drsCooldown = 2;
+  private drsProbe: { before: number } | null = null;
+  private vignette: HTMLElement;
 
   constructor(public container: HTMLElement) {
     installFogChunks();
+    installGradedToneMapping();
     this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance', stencil: false });
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -103,15 +152,37 @@ export class Renderer {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.domElement.id = 'game-canvas';
     container.appendChild(this.renderer.domElement);
+    // Vignette for the direct path: drawn by the compositor, costs no GPU pass of ours
+    this.vignette = document.createElement('div');
+    this.vignette.style.cssText = 'position:absolute;inset:0;pointer-events:none;display:none;background:radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,0.3) 100%)';
+    container.appendChild(this.vignette);
     window.addEventListener('resize', () => this.resize());
   }
 
   setQuality(q: Quality) {
     this.quality = q;
     this.preset = QUALITY[q];
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2) * this.preset.pixelRatio);
-    this.buildComposer();
+    this.dynScale = 1;
+    this.drsProbe = null;
+    this.postEnabled = this.preset.post;
+    // the direct path grades inside the tone mapper; the post chain does it in its own passes
+    this.renderer.toneMapping = this.postEnabled ? THREE.ACESFilmicToneMapping : THREE.CustomToneMapping;
+    this.vignette.style.display = this.postEnabled ? 'none' : '';
+    if (this.postEnabled) this.buildComposer();
+    else {
+      this.composer?.dispose();
+      this.composer = undefined as unknown as EffectComposer;
+    }
     this.resize();
+  }
+
+  /** Render scale actually used, after the preset, dynamic scaling and the pixel budget. */
+  private pixelRatioFor(w: number, h: number) {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    let pr = dpr * this.preset.pixelRatio * this.dynScale;
+    const px = w * h * pr * pr;
+    if (px > this.preset.maxPixels) pr *= Math.sqrt(this.preset.maxPixels / px);
+    return pr;
   }
 
   private buildComposer() {
@@ -138,12 +209,62 @@ export class Renderer {
     const h = this.container.clientHeight || window.innerHeight;
     this.width = w;
     this.height = h;
+    const pr = this.pixelRatioFor(w, h);
+    this.renderer.setPixelRatio(pr);
     this.renderer.setSize(w, h);
-    this.composer?.setSize(w, h);
+    if (this.composer) {
+      this.composer.setPixelRatio(pr);
+      this.composer.setSize(w, h);
+    }
     if (this.camera) {
       this.camera.aspect = w / h;
       this.camera.updateProjectionMatrix();
     }
+  }
+
+  /**
+   * Dynamic resolution: lower the render scale while frames run long, raise it again with headroom.
+   * If a step down doesn't make frames faster the bottleneck is the CPU, so the step is undone.
+   */
+  adapt(dt: number) {
+    if (!this.dynamicResolution || dt <= 0) return;
+    this.frameAvg += (Math.min(dt, 0.1) * 1000 - this.frameAvg) * 0.05;
+    this.drsCooldown -= dt;
+    if (this.drsCooldown > 0) return;
+    const lo = this.preset.minScale / this.preset.pixelRatio;
+    if (this.drsProbe) {
+      const helped = this.frameAvg < this.drsProbe.before * 0.95;
+      this.drsProbe = null;
+      if (!helped) {
+        this.setDynScale(Math.min(1, this.dynScale + 0.1));
+        this.drsCooldown = 20; // CPU-bound: don't blur the picture for nothing
+        return;
+      }
+    }
+    if (this.frameAvg > 22.5 && this.dynScale > lo + 0.001) {
+      this.drsProbe = { before: this.frameAvg };
+      this.setDynScale(Math.max(lo, this.dynScale - 0.1));
+      this.drsCooldown = 1.5;
+    } else if (this.frameAvg < 17.8 && this.dynScale < 1) {
+      this.setDynScale(Math.min(1, this.dynScale + 0.05));
+      this.drsCooldown = 3;
+    } else this.drsCooldown = 0.5;
+  }
+
+  /** Smoothed frame time in ms (real frames). */
+  get frameMs() {
+    return this.frameAvg;
+  }
+
+  /** Render scale in use relative to the display (after dynamic scaling and the pixel budget). */
+  get renderScale() {
+    return this.renderer.getPixelRatio() / Math.min(window.devicePixelRatio || 1, 2);
+  }
+
+  private setDynScale(v: number) {
+    if (Math.abs(v - this.dynScale) < 0.001) return;
+    this.dynScale = v;
+    this.resize();
   }
 
   render(scene: THREE.Scene, camera: THREE.PerspectiveCamera, dt: number) {
@@ -152,8 +273,8 @@ export class Renderer {
       camera.aspect = this.width / this.height;
       camera.updateProjectionMatrix();
     }
-    this.grade.uniforms.uTime.value = G.time.value;
-    if (this.postEnabled) {
+    if (this.postEnabled && this.composer) {
+      this.grade.uniforms.uTime.value = G.time.value;
       this.renderPass.scene = scene;
       this.renderPass.camera = camera;
       this.composer.render(dt);
@@ -163,6 +284,6 @@ export class Renderer {
   }
 
   get gradeUniforms() {
-    return this.grade.uniforms;
+    return this.grade?.uniforms;
   }
 }

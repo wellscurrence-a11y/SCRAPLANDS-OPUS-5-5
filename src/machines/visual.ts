@@ -40,6 +40,7 @@ function instantiate(
     o.add(mesh);
     meshes.push(mesh);
   }
+  if (t.anchor) o.userData.anchor = true;
   if (t.name !== 'root') nodes.set(t.name, o);
   for (const c of t.children) o.add(instantiate(c, mats, rarity, damage, meshes, nodes, shadows));
   return o;
@@ -65,14 +66,14 @@ export function damageLevelFor(cond: number) {
   return cond <= 0 ? 2 : cond < 0.5 ? 1 : 0;
 }
 
-export function assembleDesign(design: MachineDesign, mats: MachineMaterials, opts: { shadows?: boolean; layout?: LayoutResult } = {}): AssembledMachine {
+export function assembleDesign(design: MachineDesign, mats: MachineMaterials, opts: { shadows?: boolean; layout?: LayoutResult; detail?: number } = {}): AssembledMachine {
   const layout = opts.layout ?? layoutDesign(design);
   const root = new THREE.Group();
   root.name = design.name;
   const parts = new Map<string, PartVisual>();
   const shadows = opts.shadows ?? true;
   for (const lay of layout.parts) {
-    const tpl = getPartTemplate(lay.def);
+    const tpl = getPartTemplate(lay.def, opts.detail ?? 1);
     const meshes: THREE.Mesh[] = [];
     const nodes = new Map<string, THREE.Object3D>();
     const node = instantiate(tpl.root, mats, lay.def.rarity, damageLevelFor(lay.placed.cond), meshes, nodes, shadows);

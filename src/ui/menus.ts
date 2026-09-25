@@ -12,6 +12,8 @@ export interface Settings {
   sensitivity: number;
   invertY: boolean;
   fov: number;
+  /** Small FPS / render-scale readout in the corner. */
+  showPerf: boolean;
 }
 
 const SETTINGS_KEY = 'scraplands.settings';
@@ -28,7 +30,7 @@ export function detectQuality(): Quality {
 }
 
 export function loadSettings(): Settings {
-  const def: Settings = { quality: detectQuality(), autoQuality: true, volume: 0.8, music: 0.5, sensitivity: 1, invertY: false, fov: 68 };
+  const def: Settings = { quality: detectQuality(), autoQuality: true, volume: 0.8, music: 0.5, sensitivity: 1, invertY: false, fov: 68, showPerf: false };
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (raw) return { ...def, ...JSON.parse(raw) };
@@ -129,6 +131,11 @@ export function settingsPanel(s: Settings, onChange: (s: Settings) => void): HTM
     s.invertY = invert.checked;
     onChange(s);
   };
+  const perf = h('input', { type: 'checkbox', checked: s.showPerf }) as HTMLInputElement;
+  perf.onchange = () => {
+    s.showPerf = perf.checked;
+    onChange(s);
+  };
   return h(
     'div',
     { class: 'settings-grid' },
@@ -145,6 +152,9 @@ export function settingsPanel(s: Settings, onChange: (s: Settings) => void): HTM
     ...slider('fov', 55, 90, 1),
     h('div', { class: 'label' }, 'Invert mouse Y'),
     invert,
+    h('div'),
+    h('div', { class: 'label' }, 'Show FPS'),
+    perf,
     h('div'),
   );
 }

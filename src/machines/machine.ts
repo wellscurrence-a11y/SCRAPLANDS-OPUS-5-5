@@ -9,6 +9,8 @@ import type { MachineClass, MachineDesign } from './types';
 import { computeStats, FUEL_DENSITY, MachineStats } from './stats';
 import { MachineMaterials } from './materials';
 import { assembleDesign, damageLevelFor, setPartDamageLook } from './visual';
+import { detailSettings } from './parts/kit';
+import { MachineBatch } from './batch';
 import { PartRuntime } from './part';
 import { symmetricEigen3, clamp, clamp01, lerp } from '../core/math';
 import { rand, randRange } from '../core/random';
@@ -140,7 +142,7 @@ export class Machine {
     this.name = design.name;
     this.stats = computeStats(design, opts.fuelFraction ?? 1);
     this.mats = new MachineMaterials(design.paint);
-    const asm = assembleDesign(design, this.mats, { layout: this.stats.layout });
+    const asm = assembleDesign(design, this.mats, { layout: this.stats.layout, detail: detailSettings.world });
     this.root = asm.root;
     for (const lay of this.stats.layout.parts) {
       const pv = asm.parts.get(lay.placed.uid)!;
@@ -173,6 +175,21 @@ export class Machine {
     this.refreshMass();
     this.updateHitMatrices();
     if (this.isPlayer) this.createHeadlights();
+    // Part roots and socket anchors never move relative to their parent: freeze their local matrices.
+    for (const p of this.parts) {
+      p.node.traverse((o) => {
+        if (o !== p.node && !o.userData.anchor) return;
+        o.updateMatrix();
+        o.matrixAutoUpdate = false;
+      });
+    }
+    this.batch = new MachineBatch(this.root, this.parts, detailSettings.world >= 1 ? 0 : 0.35);
+  }
+
+  /** Swap a part's damage look (and refresh the merged batch). */
+  private setLook(p: PartRuntime, level: number) {
+    setPartDamageLook(p, this.mats, level, p.def.rarity);
+    this.batch?.invalidate();
   }
 
   // ------------------------------------------------------------------ construction
@@ -512,6 +529,11 @@ export class Machine {
 
   /** Visual update with interpolation factor alpha between the last two physics states. */
   update(dt: number, alpha: number) {
+    if (this.batch) {
+      this.batch.update(dt);
+      const d = detailSettings.smallPartDistance;
+      this.batch.setSmallVisible(this.isPlayer || this.root.position.distanceToSquared(this.ctx.camera.position) < d * d);
+    }
     this.root.position.lerpVectors(this.prevPos, this.currPos, alpha);
     this.root.quaternion.slerpQuaternions(this.prevQuat, this.currQuat, alpha);
     this.mats.uniforms.uRootInv.value.copy(this.root.matrixWorld).invert();
@@ -525,7 +547,9 @@ export class Machine {
       this.mats.setLights(on);
     }
     for (const l of this.headlights) l.intensity = on ? 38 : 0;
-    this.root.updateMatrixWorld(true);
+    // Only the root here: the renderer updates the rest of the hierarchy once, right before drawing.
+    this.root.updateMatrix();
+    this.root.matrixWorld.copy(this.root.matrix);
     this.mats.uniforms.uRootInv.value.copy(this.root.matrixWorld).invert();
   }
 
@@ -627,7 +651,7 @@ export class Machine {
     const lvl = damageLevelFor(p.hp / p.maxHp);
     if (lvl !== p.damageLevel && p.hp > 0) {
       p.damageLevel = lvl;
-      setPartDamageLook(p, this.mats, lvl, p.def.rarity);
+      this.setLook(p, lvl);
     }
     if (this.isPlayer) this.ctx.events.emit('playerDamaged', { amount });
     if (p.hp <= 0) {
@@ -647,7 +671,7 @@ export class Machine {
     p.destroyed = true;
     p.hp = 0;
     p.damageLevel = 2;
-    setPartDamageLook(p, this.mats, 2, p.def.rarity);
+    this.setLook(p, 2);
     const pos = p.worldCenter.clone();
     const fx = this.ctx.fx;
     fx.sparks(pos, new THREE.Vector3(0, 1, 0), 24, 10, 1);
@@ -717,6 +741,8 @@ export class Machine {
       this.controller.onPartChanged(x);
       for (const w of this.weapons) if (w.part === x) w.disabled = true;
     }
+    // Un-merge before the visual leaves: the debris shows the part's own meshes
+    this.batch?.rebuild();
     // Hand the visual over to the debris system with world transform preserved
     p.node.updateMatrixWorld(true);
     const world = p.node.matrixWorld.clone();
@@ -758,11 +784,11 @@ export class Machine {
         p.hp = 0;
         p.destroyed = true;
         p.damageLevel = 2;
-        setPartDamageLook(p, this.mats, 2, p.def.rarity);
+        this.setLook(p, 2);
       } else {
         const lvl = damageLevelFor(p.hp / p.maxHp);
         p.damageLevel = lvl;
-        setPartDamageLook(p, this.mats, lvl, p.def.rarity);
+        this.setLook(p, lvl);
       }
       if (p.def.category === 'engine' || p.def.category === 'generator' || p.def.category === 'fuel') p.burning = Math.max(p.burning, randRange(8, 25));
     }
@@ -860,10 +886,13 @@ export class Machine {
 
   /** Set once the physics body is freed; the machine must not be touched after that. */
   disposed = false;
+  /** Rigid meshes merged per material (fewer draw calls); null when batching is off. */
+  batch: MachineBatch | null = null;
 
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
+    this.batch?.clear();
     for (const p of this.parts) {
       if (p.collider) this.ctx.physics.owners.delete(p.collider.handle);
     }

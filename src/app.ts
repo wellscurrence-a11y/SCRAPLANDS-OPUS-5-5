@@ -27,6 +27,7 @@ import { MerchantUI } from './ui/merchant';
 import { JournalUI } from './ui/journal';
 import { AudioEngine } from './audio/engine';
 import { clamp } from './core/math';
+import { withDetail, detailSettings } from './machines/parts/kit';
 
 export type AppMode = 'loading' | 'title' | 'world' | 'garage';
 
@@ -58,6 +59,8 @@ export class App {
   private fade: HTMLElement;
   private dirTick = 0;
   private slowT = 0;
+  private perfEl: HTMLElement | null = null;
+  private perfT = 0;
 
   constructor() {
     this.ui = document.getElementById('ui')!;
@@ -74,10 +77,13 @@ export class App {
     loading.set(0.88, 'Raising the settlements');
     await new Promise((r) => setTimeout(r, 0));
     this.props = new WorldProps(game);
-    this.props.build();
+    withDetail(detailSettings.world, () => this.props.build());
     this.audio = new AudioEngine(game);
     game.audio = this.audio;
     this.director = new Director(game);
+    const capEnemies = () => (this.director.maxEnemies = game.renderer.preset.maxEnemies);
+    capEnemies();
+    game.hooks.preset.push(capEnemies);
     this.salvage = new SalvageSystem(game, () => this.profile!);
     this.salvageUI = new SalvageUI(this.ui, this.salvage);
     this.salvageUI.onClose = () => this.resumeControl();
@@ -119,8 +125,7 @@ export class App {
   applySettings() {
     const s = this.settings;
     if (this.game.renderer.quality !== s.quality) this.game.renderer.setQuality(s.quality);
-    this.game.env.setShadowQuality(this.game.renderer.preset.shadowSize, this.game.renderer.preset.shadowRange);
-    this.game.fx.quality = this.game.renderer.preset.particles;
+    this.game.applyPreset();
     input.sensitivity = s.sensitivity;
     input.invertY = s.invertY;
     this.game.chase.baseFov = s.fov;
@@ -569,7 +574,26 @@ export class App {
     this.audio.update(dt);
     game.chase.baseFov = this.settings.fov;
     this.adaptQuality(dt);
+    this.updatePerf(dt);
     void clamp;
+  }
+
+  /** Optional corner readout: frames per second, frame time, render scale and preset. */
+  private updatePerf(dt: number) {
+    if (!this.settings.showPerf) {
+      if (this.perfEl) this.perfEl.style.display = 'none';
+      return;
+    }
+    if (!this.perfEl) {
+      this.perfEl = h('div', { style: { position: 'absolute', left: '22px', top: '50px', font: '12px var(--mono, monospace)', color: '#e8dcc6', background: 'rgba(0,0,0,0.45)', padding: '3px 8px', pointerEvents: 'none', zIndex: '5' } });
+      this.ui.appendChild(this.perfEl);
+    }
+    this.perfEl.style.display = '';
+    this.perfT -= dt;
+    if (this.perfT > 0) return;
+    this.perfT = 0.5;
+    const r = this.game.renderer;
+    this.perfEl.textContent = `${Math.round(this.game.fps)} fps · ${r.frameMs.toFixed(1)} ms · res ${Math.round(r.renderScale * 100)}% · ${r.quality.toUpperCase()}`;
   }
 
   /** If the device can't keep up, step graphics down once per slow spell (only while quality is automatic). */

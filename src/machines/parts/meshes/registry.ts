@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { PartDef } from '../../types';
 import { rarityIndex } from '../../types';
-import { NodeTemplate, PartBuilder } from '../kit';
+import { NodeTemplate, PartBuilder, withDetail } from '../kit';
 
 export type MeshFn = (b: PartBuilder, def: PartDef) => void;
 
@@ -49,9 +49,15 @@ function addRarityAccent(b: PartBuilder, def: PartDef, bounds: THREE.Box3) {
   }
 }
 
-export function getPartTemplate(def: PartDef): PartTemplate {
-  const cached = cache.get(def.id);
+/** Template for a part at a geometry detail level (1 = full, 0 = light). Cached per level. */
+export function getPartTemplate(def: PartDef, detail = 1): PartTemplate {
+  const key = detail >= 1 ? def.id : `${def.id}@${detail}`;
+  const cached = cache.get(key);
   if (cached) return cached;
+  return withDetail(detail, () => buildTemplate(def, key));
+}
+
+function buildTemplate(def: PartDef, key: string): PartTemplate {
   const fn = registry[def.mesh];
   const b = new PartBuilder();
   if (fn) {
@@ -80,7 +86,7 @@ export function getPartTemplate(def: PartDef): PartTemplate {
   computeBounds(root, new THREE.Matrix4(), bounds);
   if (bounds.isEmpty()) bounds.set(new THREE.Vector3(-0.2, 0, -0.2), new THREE.Vector3(0.2, 0.4, 0.2));
   const t = { root, bounds };
-  cache.set(def.id, t);
+  cache.set(key, t);
   return t;
 }
 

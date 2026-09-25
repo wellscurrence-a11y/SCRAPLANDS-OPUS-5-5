@@ -34,6 +34,7 @@ export class AudioEngine implements AudioAPI {
   private music_: Music | null = null;
   private musicMode = 'title';
   private right = new THREE.Vector3();
+  private lite = false;
 
   constructor(private game: Game) {
     const unlock = () => {
@@ -48,8 +49,10 @@ export class AudioEngine implements AudioAPI {
 
   private init() {
     if (this.ctx) return;
+    // Budget devices (light geometry preset): bigger audio buffers, shorter reverb tail, fewer voices
+    this.lite = this.game.renderer.preset.detail < 1;
     try {
-      this.ctx = new AudioContext();
+      this.ctx = new AudioContext({ latencyHint: this.lite ? 'balanced' : 'interactive' });
     } catch {
       return;
     }
@@ -81,7 +84,7 @@ export class AudioEngine implements AudioAPI {
     }
     // Reverb impulse
     this.reverb = ctx.createConvolver();
-    const irLen = ctx.sampleRate * 2.2;
+    const irLen = Math.round(ctx.sampleRate * (this.lite ? 1.1 : 2.2));
     const ir = ctx.createBuffer(2, irLen, ctx.sampleRate);
     for (let c = 0; c < 2; c++) {
       const ch = ir.getChannelData(c);
@@ -159,7 +162,7 @@ export class AudioEngine implements AudioAPI {
     // voice limit
     const now = ctx.currentTime;
     this.voices = this.voices.filter((v) => v.end > now);
-    if (this.voices.length > 40) {
+    if (this.voices.length > (this.lite ? 24 : 40)) {
       const weakest = this.voices.reduce((a, b) => (a.priority < b.priority ? a : b));
       if (weakest.priority > priority * gainV) return null;
       weakest.gain.gain.setTargetAtTime(0, now, 0.01);

@@ -15,6 +15,11 @@ import { RNG } from '../core/random';
 import { Noise } from '../core/noise';
 import { clamp, smoothstep } from '../core/math';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { activeDetail } from '../machines/parts/kit';
+
+type ScatterKind = 'rock' | 'shrub' | 'plant';
+/** Base view distance (m) per scatter kind, scaled by the preset. */
+const SCATTER_RANGE: Record<ScatterKind, number> = { rock: 380, shrub: 170, plant: 480 };
 
 export interface InteractionPoint {
   pos: THREE.Vector3;
@@ -102,6 +107,12 @@ export class WorldProps {
     this.buildOverpass();
     this.buildRoadside();
     this.buildScatter();
+    // Nothing in the props ever moves: freeze every local matrix so per-frame updates skip them.
+    this.group.traverse((o) => {
+      o.updateMatrix();
+      o.matrixAutoUpdate = false;
+    });
+    this.group.updateMatrixWorld(true);
     console.log(`[props] built in ${(performance.now() - t0).toFixed(0)} ms`);
   }
 
@@ -1026,8 +1037,10 @@ export class WorldProps {
     const rng = new RNG(1234);
     // Rock variants
     const rockGeos: THREE.BufferGeometry[] = [];
+    const light = activeDetail < 1;
+    const density = this.game.renderer.preset.scatterDensity;
     for (let v = 0; v < 6; v++) {
-      const g = new THREE.IcosahedronGeometry(1, 2);
+      const g = new THREE.IcosahedronGeometry(1, light ? 1 : 2);
       const pos = g.attributes.position as THREE.BufferAttribute;
       const p = new THREE.Vector3();
       const n = new Noise(300 + v);
@@ -1053,6 +1066,8 @@ export class WorldProps {
       return s === 'asphalt' || s === 'gravel';
     };
     for (let i = 0; i < 2600; i++) {
+      // same random sequence at every density, so the world looks alike across presets
+      const keep = rng.next() < density;
       const x = rng.range(-880, 880);
       const z = rng.range(-880, 880);
       if (nearLoc(x, z) || nearRoad(x, z)) continue;
@@ -1068,6 +1083,7 @@ export class WorldProps {
       const m = new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), q, new THREE.Vector3(scale * rng.range(0.8, 1.3), scale, scale * rng.range(0.8, 1.3)));
       const v = rng.int(0, 5);
       const red = Math.hypot(x + 560, z - 620) < 480;
+      if (!keep && !big) continue; // thinned out: no mesh, no collider
       (red ? perVariantRed : perVariant)[v].push(m);
       if (scale > 1.2) {
         const c = world.createCollider(RAPIER.ColliderDesc.ball(scale * 0.8).setTranslation(x, y + scale * 0.2, z).setCollisionGroups(COLLIDE.static).setFriction(0.9));
@@ -1075,29 +1091,21 @@ export class WorldProps {
       }
     }
     const addInst = (lists: THREE.Matrix4[][], mat: THREE.Material) => {
-      lists.forEach((list, v) => {
-        if (!list.length) return;
-        const im = new THREE.InstancedMesh(rockGeos[v], mat, list.length);
-        list.forEach((m, i) => im.setMatrixAt(i, m));
-        im.castShadow = true;
-        im.receiveShadow = true;
-        im.computeBoundingSphere();
-        this.group.add(im);
-      });
+      lists.forEach((list, v) => this.addScatter(rockGeos[v], mat, list, 'rock', true));
     };
     addInst(perVariant, rockMat);
     addInst(perVariantRed, redRockMat);
     // Vegetation: dry shrubs, dead trees, cacti
     const shrubGeo = (() => {
       const parts: THREE.BufferGeometry[] = [];
-      for (let k = 0; k < 7; k++) {
-        const c = new THREE.ConeGeometry(0.05, 0.9, 4);
+      for (let k = 0; k < (light ? 4 : 7); k++) {
+        const c = new THREE.ConeGeometry(0.05, 0.9, light ? 3 : 4);
         c.translate(0, 0.45, 0);
         c.rotateZ((k % 2 ? 1 : -1) * (0.3 + (k / 7) * 0.6));
         c.rotateY((k / 7) * PI * 2);
         parts.push(c.toNonIndexed());
       }
-      const blob = new THREE.IcosahedronGeometry(0.55, 1);
+      const blob = new THREE.IcosahedronGeometry(0.55, light ? 0 : 1);
       blob.scale(1, 0.55, 1);
       blob.translate(0, 0.35, 0);
       parts.push(blob.toNonIndexed());
@@ -1137,8 +1145,9 @@ export class WorldProps {
     const shrubMat = new THREE.MeshStandardMaterial({ color: 0x6d6440, roughness: 1 });
     const cactusMat = new THREE.MeshStandardMaterial({ color: 0x4f6a3a, roughness: 0.8 });
     const treeMat = new THREE.MeshStandardMaterial({ color: 0x4a3a2c, roughness: 0.9 });
-    const plant = (geo: THREE.BufferGeometry, mat: THREE.Material, count: number, filter: (x: number, z: number) => boolean, scale: [number, number], collide: number) => {
+    const plant = (geo: THREE.BufferGeometry, mat: THREE.Material, count: number, filter: (x: number, z: number) => boolean, scale: [number, number], collide: number, kind: ScatterKind) => {
       const ms: THREE.Matrix4[] = [];
+      const shown: THREE.Matrix4[] = [];
       for (let i = 0; i < count * 3 && ms.length < count; i++) {
         const x = rng.range(-870, 870);
         const z = rng.range(-870, 870);
@@ -1146,22 +1155,60 @@ export class WorldProps {
         if (!filter(x, z)) continue;
         const s = rng.range(scale[0], scale[1]);
         const y = terrain.heightAt(x, z) - 0.05;
-        ms.push(new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rng.range(-0.08, 0.08), rng.range(0, 6), rng.range(-0.08, 0.08))), new THREE.Vector3(s, s, s)));
+        const mtx = new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rng.range(-0.08, 0.08), rng.range(0, 6), rng.range(-0.08, 0.08))), new THREE.Vector3(s, s, s));
+        ms.push(mtx);
+        // colliders stay for every plant that blocks; only the drawn set thins out with density
+        if (collide > 0 || ((ms.length * 7919) % 1000) / 1000 < density) shown.push(mtx);
         if (collide > 0) {
           const c = world.createCollider(RAPIER.ColliderDesc.cylinder(1.5 * s, collide * s).setTranslation(x, y + 1.5 * s, z).setCollisionGroups(COLLIDE.static));
           this.game.physics.owners.set(c.handle, { kind: 'static', surface: 'wood' });
         }
       }
-      const im = new THREE.InstancedMesh(geo, mat, ms.length);
-      ms.forEach((m, i) => im.setMatrixAt(i, m));
-      im.castShadow = true;
+      this.addScatter(geo, mat, shown, kind, kind !== 'shrub' || !light);
+    };
+    plant(shrubGeo, shrubMat, 2200, (x, z) => terrain.sandAmount(x, z) < 0.5 && terrain.normalAt(x, z).y > 0.85, [0.6, 1.5], 0, 'shrub');
+    plant(cactusGeo, cactusMat, 260, (x, z) => terrain.normalAt(x, z).y > 0.9 && z > -200, [0.8, 1.4], 0.35, 'plant');
+    plant(treeGeo, treeMat, 180, (x, z) => terrain.normalAt(x, z).y > 0.88 && terrain.sandAmount(x, z) < 0.3, [0.8, 1.6], 0.2, 'plant');
+    // cull scatter tiles by distance every frame (title screen included)
+    this.game.hooks.frame.push(() => this.cullScatter());
+    this.game.hooks.preset.push(() => (this.scatterDist = this.game.renderer.preset.scatterDistance));
+    this.scatterDist = this.game.renderer.preset.scatterDistance;
+  }
+
+  // ------------------------------------------------------------------ scatter tiles
+  private scatter: { mesh: THREE.InstancedMesh; center: THREE.Vector3; radius: number; kind: ScatterKind }[] = [];
+  private scatterDist = 1;
+
+  /** Instanced scatter split into map tiles so off-screen and distant tiles cost nothing. */
+  private addScatter(geo: THREE.BufferGeometry, mat: THREE.Material, matrices: THREE.Matrix4[], kind: ScatterKind, castShadow: boolean) {
+    const TILE = 240;
+    const buckets = new Map<string, THREE.Matrix4[]>();
+    const p = new THREE.Vector3();
+    for (const m of matrices) {
+      p.setFromMatrixPosition(m);
+      const key = `${Math.floor(p.x / TILE)},${Math.floor(p.z / TILE)}`;
+      let list = buckets.get(key);
+      if (!list) buckets.set(key, (list = []));
+      list.push(m);
+    }
+    for (const list of buckets.values()) {
+      const im = new THREE.InstancedMesh(geo, mat, list.length);
+      list.forEach((m, i) => im.setMatrixAt(i, m));
+      im.castShadow = castShadow;
       im.receiveShadow = true;
       im.computeBoundingSphere();
       this.group.add(im);
-    };
-    plant(shrubGeo, shrubMat, 2200, (x, z) => terrain.sandAmount(x, z) < 0.5 && terrain.normalAt(x, z).y > 0.85, [0.6, 1.5], 0);
-    plant(cactusGeo, cactusMat, 260, (x, z) => terrain.normalAt(x, z).y > 0.9 && z > -200, [0.8, 1.4], 0.35);
-    plant(treeGeo, treeMat, 180, (x, z) => terrain.normalAt(x, z).y > 0.88 && terrain.sandAmount(x, z) < 0.3, [0.8, 1.6], 0.2);
+      this.scatter.push({ mesh: im, center: im.boundingSphere!.center.clone(), radius: im.boundingSphere!.radius, kind });
+    }
+  }
+
+  private cullScatter() {
+    const cam = this.game.camera.position;
+    const k = this.scatterDist;
+    for (const t of this.scatter) {
+      const range = SCATTER_RANGE[t.kind] * k;
+      t.mesh.visible = t.center.distanceTo(cam) - t.radius < range;
+    }
   }
 
   // ------------------------------------------------------------------ runtime

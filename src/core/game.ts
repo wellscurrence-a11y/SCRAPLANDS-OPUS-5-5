@@ -17,6 +17,7 @@ import { ChaseCamera } from './camera';
 import { input } from './input';
 import { PlayerControl } from '../gameplay/playerControl';
 import { registerAllMeshes } from '../machines/parts/meshes';
+import { detailSettings } from '../machines/parts/kit';
 import { SilentAudio } from '../audio/audio';
 import { clamp } from './math';
 import type { PartRuntime } from '../machines/part';
@@ -35,6 +36,8 @@ const HOSTILITY: Record<string, Faction[]> = {
 export interface Hooks {
   fixed: ((dt: number) => void)[];
   frame: ((dt: number) => void)[];
+  /** Called after the graphics preset changes. */
+  preset: (() => void)[];
 }
 
 export class Game {
@@ -56,7 +59,7 @@ export class Game {
   private acc = 0;
   private last = performance.now();
   manual = false;
-  hooks: Hooks = { fixed: [], frame: [] };
+  hooks: Hooks = { fixed: [], frame: [], preset: [] };
   audio: AudioAPI = new SilentAudio();
   frameCount = 0;
   fps = 60;
@@ -128,6 +131,18 @@ export class Game {
     });
     onProgress(0.85, 'Warming up shaders');
     await tick();
+  }
+
+  /** Push the renderer's quality preset to every system that scales with it. */
+  applyPreset() {
+    const p = this.renderer.preset;
+    this.env.setShadowQuality(p.shadowSize, p.shadowRange);
+    this.fx.quality = p.particles;
+    this.terrain.setQuality(p.lodScale, p.terrainShadows, p.detail < 1);
+    this.env.sky.setLight(p.detail < 1);
+    detailSettings.world = p.detail;
+    detailSettings.smallPartDistance = p.smallPartDistance;
+    for (const h of this.hooks.preset) h();
   }
 
   spawnMachine(design: MachineDesign, pos: THREE.Vector3, yaw: number, faction: Faction, isPlayer = false, fuelFraction = 1) {
@@ -237,7 +252,10 @@ export class Game {
         this.fpsAcc = 0;
         this.fpsFrames = 0;
       }
-      if (!this.manual) this.frame(dt);
+      if (!this.manual) {
+        this.frame(dt);
+        if (this.state !== 'loading') this.renderer.adapt(dt);
+      }
       requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);
@@ -249,12 +267,14 @@ export class Game {
       if (!this.paused) {
         this.acc += dt * this.timeScale;
         let steps = 0;
-        while (this.acc >= FIXED_DT && steps < 6) {
+        // At most 3 catch-up steps: on a slow device the game slows down slightly
+        // instead of spiralling into ever longer frames.
+        while (this.acc >= FIXED_DT && steps < 3) {
           this.step(FIXED_DT);
           this.acc -= FIXED_DT;
           steps++;
         }
-        if (steps >= 6) this.acc = 0;
+        if (steps >= 3) this.acc = Math.min(this.acc, FIXED_DT);
       }
       this.frameUpdate(this.paused ? 0 : dt, this.acc / FIXED_DT);
       this.renderer.render(this.scene, this.camera, dt);

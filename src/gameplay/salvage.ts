@@ -157,6 +157,7 @@ export class SalvageSystem {
     }
     part.detached = true;
     part.node.parent?.remove(part.node);
+    wreck.batch?.rebuild();
     if (part.collider) {
       game.physics.owners.delete(part.collider.handle);
       game.physics.world.removeCollider(part.collider, true);

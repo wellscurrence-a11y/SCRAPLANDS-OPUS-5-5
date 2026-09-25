@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { SHADOW_LAYER } from '../machines/batch';
 import { computeAtmosphere, AtmosphereState, Sky } from './sky';
 import { G } from './globals';
 import { clamp01, lerp, smoothstep } from '../core/math';
@@ -58,6 +59,7 @@ export class Environment {
     this.sun.shadow.normalBias = 0.04;
     this.sun.shadow.radius = 2;
     const cam = this.sun.shadow.camera;
+    cam.layers.enable(SHADOW_LAYER); // machines' merged shadow proxies live only on this layer
     cam.near = 1;
     cam.far = 900;
     scene.add(this.sun);

@@ -28,12 +28,37 @@ export type Slot =
 
 export type V3 = [number, number, number];
 
+/**
+ * Geometry detail used while building: 1 = full, 0 = light (budget GPUs: plainer boxes,
+ * half the round segments, no bolt heads). Builders capture it when created.
+ */
+export let activeDetail = 1;
+/** Detail used for world machines and props (set from the graphics preset). */
+export const detailSettings = { world: 1, smallPartDistance: 120 };
+
+export function withDetail<T>(detail: number, fn: () => T): T {
+  const prev = activeDetail;
+  activeDetail = detail;
+  try {
+    return fn();
+  } finally {
+    activeDetail = prev;
+  }
+}
+
+/** Segment count for the active detail level. */
+export function segs(n: number, min = 6) {
+  return activeDetail >= 1 ? n : Math.max(min, Math.round(n * 0.5));
+}
+
 export class NodeTemplate {
   pos = new THREE.Vector3();
   quat = new THREE.Quaternion();
   parts = new Map<Slot, THREE.BufferGeometry[]>();
   merged = new Map<Slot, THREE.BufferGeometry>();
   children: NodeTemplate[] = [];
+  /** Created by anchor(): a fixed mount point, never animated by itself. */
+  anchor = false;
   constructor(public name: string) {}
 
   finalize() {
@@ -89,6 +114,11 @@ function normalizeGeo(g: THREE.BufferGeometry): THREE.BufferGeometry {
 export class PartBuilder {
   root = new NodeTemplate('root');
   private stack: NodeTemplate[] = [this.root];
+  /** Detail level captured at construction (see activeDetail). */
+  readonly detail = activeDetail;
+  private seg(n: number, min = 6) {
+    return this.detail >= 1 ? n : Math.max(min, Math.round(n * 0.5));
+  }
 
   get cur() {
     return this.stack[this.stack.length - 1];
@@ -112,6 +142,7 @@ export class PartBuilder {
   /** Empty anchor node (sockets, muzzles, lights). */
   anchor(name: string, pos: V3 = [0, 0, 0], rot: V3 = [0, 0, 0]) {
     this.node(name, pos, rot);
+    this.cur.anchor = true;
     this.end();
     return this;
   }
@@ -133,39 +164,44 @@ export class PartBuilder {
   // ---------- primitives ----------
   box(slot: Slot, w: number, h: number, d: number, pos: V3 = [0, 0, 0], rot: V3 = [0, 0, 0], bevel = 0.02) {
     const r = Math.min(bevel, w * 0.49, h * 0.49, d * 0.49);
-    const geo = r > 0.001 ? new RoundedBoxGeometry(w, h, d, 2, r) : new THREE.BoxGeometry(w, h, d);
+    let geo: THREE.BufferGeometry;
+    if (r <= 0.001) geo = new THREE.BoxGeometry(w, h, d);
+    else if (this.detail >= 1) geo = new RoundedBoxGeometry(w, h, d, 2, r);
+    // light detail: only large panels keep a (cheaper) bevel to catch the light
+    else geo = Math.max(w, h, d) >= 0.8 ? new RoundedBoxGeometry(w, h, d, 1, r) : new THREE.BoxGeometry(w, h, d);
     return this.add(slot, geo, pos, rot);
   }
 
   cyl(slot: Slot, r: number, h: number, pos: V3 = [0, 0, 0], rot: V3 = [0, 0, 0], seg = 18, rTop?: number, open = false) {
-    return this.add(slot, new THREE.CylinderGeometry(rTop ?? r, r, h, seg, 1, open), pos, rot);
+    return this.add(slot, new THREE.CylinderGeometry(rTop ?? r, r, h, this.seg(seg), 1, open), pos, rot);
   }
 
   /** Cylinder along the Z axis (convenience for barrels, pipes). */
   cylZ(slot: Slot, r: number, len: number, pos: V3 = [0, 0, 0], seg = 16, rEnd?: number) {
-    return this.add(slot, new THREE.CylinderGeometry(rEnd ?? r, r, len, seg), pos, [Math.PI / 2, 0, 0]);
+    return this.add(slot, new THREE.CylinderGeometry(rEnd ?? r, r, len, this.seg(seg)), pos, [Math.PI / 2, 0, 0]);
   }
 
   /** Cylinder along the X axis. */
   cylX(slot: Slot, r: number, len: number, pos: V3 = [0, 0, 0], seg = 16) {
-    return this.add(slot, new THREE.CylinderGeometry(r, r, len, seg), pos, [0, 0, Math.PI / 2]);
+    return this.add(slot, new THREE.CylinderGeometry(r, r, len, this.seg(seg)), pos, [0, 0, Math.PI / 2]);
   }
 
   sphere(slot: Slot, r: number, pos: V3 = [0, 0, 0], scale: V3 = [1, 1, 1], seg = 16) {
-    return this.add(slot, new THREE.SphereGeometry(r, seg, Math.max(6, seg >> 1)), pos, [0, 0, 0], scale);
+    const sg = this.seg(seg);
+    return this.add(slot, new THREE.SphereGeometry(r, sg, Math.max(4, sg >> 1)), pos, [0, 0, 0], scale);
   }
 
   cone(slot: Slot, r: number, h: number, pos: V3 = [0, 0, 0], rot: V3 = [0, 0, 0], seg = 16) {
-    return this.add(slot, new THREE.ConeGeometry(r, h, seg), pos, rot);
+    return this.add(slot, new THREE.ConeGeometry(r, h, this.seg(seg, 4)), pos, rot);
   }
 
   torus(slot: Slot, r: number, tube: number, pos: V3 = [0, 0, 0], rot: V3 = [0, 0, 0], seg = 24, arc = Math.PI * 2) {
-    return this.add(slot, new THREE.TorusGeometry(r, tube, 8, seg, arc), pos, rot);
+    return this.add(slot, new THREE.TorusGeometry(r, tube, this.detail >= 1 ? 8 : 5, this.seg(seg, 8), arc), pos, rot);
   }
 
   lathe(slot: Slot, profile: [number, number][], pos: V3 = [0, 0, 0], rot: V3 = [0, 0, 0], seg = 24) {
     const pts = profile.map(([r, y]) => new THREE.Vector2(r, y));
-    return this.add(slot, new THREE.LatheGeometry(pts, seg), pos, rot);
+    return this.add(slot, new THREE.LatheGeometry(pts, this.seg(seg, 8)), pos, rot);
   }
 
   /** Extruded 2D shape (XY profile) along Z by depth. */
@@ -210,7 +246,7 @@ export class PartBuilder {
 
   pipe(slot: Slot, points: V3[], r: number, seg = 24, radial = 8) {
     const curve = new THREE.CatmullRomCurve3(points.map((p) => new THREE.Vector3(p[0], p[1], p[2])));
-    return this.add(slot, new THREE.TubeGeometry(curve, seg, r, radial, false));
+    return this.add(slot, new THREE.TubeGeometry(curve, this.seg(seg, 6), r, this.detail >= 1 ? radial : Math.max(4, radial - 3), false));
   }
 
   // ---------- details ----------
@@ -222,6 +258,7 @@ export class PartBuilder {
         : axis === 'x' || axis === '-x'
           ? [0, 0, Math.PI / 2]
           : [Math.PI / 2, 0, 0];
+    if (this.detail < 1) return this; // bolt heads are invisible at a distance
     for (const p of positions) this.add(slot, new THREE.CylinderGeometry(r, r, r * 0.9, 6), p, rot);
     return this;
   }
@@ -278,10 +315,12 @@ export class PartBuilder {
     const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
     const e = new THREE.Euler().setFromQuaternion(q);
     const rot: V3 = [e.x, e.y, e.z];
-    this.add(bodySlot, new THREE.CylinderGeometry(r, r, len * 0.6, 12), [mid1.x, mid1.y, mid1.z], rot);
-    this.add('chrome', new THREE.CylinderGeometry(r * 0.5, r * 0.5, len * 0.5, 10), [mid2.x, mid2.y, mid2.z], rot);
-    this.add('metal', new THREE.SphereGeometry(r * 1.1, 8, 6), a);
-    this.add('metal', new THREE.SphereGeometry(r * 0.9, 8, 6), b);
+    this.add(bodySlot, new THREE.CylinderGeometry(r, r, len * 0.6, this.seg(12)), [mid1.x, mid1.y, mid1.z], rot);
+    this.add('chrome', new THREE.CylinderGeometry(r * 0.5, r * 0.5, len * 0.5, this.seg(10)), [mid2.x, mid2.y, mid2.z], rot);
+    if (this.detail >= 1) {
+      this.add('metal', new THREE.SphereGeometry(r * 1.1, 8, 6), a);
+      this.add('metal', new THREE.SphereGeometry(r * 0.9, 8, 6), b);
+    }
     return this;
   }
 
@@ -348,9 +387,9 @@ export function tireGeometry(radius: number, width: number, tread: 'knobby' | 's
   const hw = width / 2;
   const prof: THREE.Vector2[] = [];
   const bulge = tread === 'street' ? 0.02 : 0.05;
-  const segs = 14;
-  for (let i = 0; i <= segs; i++) {
-    const t = i / segs;
+  const profSegs = activeDetail >= 1 ? 14 : 8;
+  for (let i = 0; i <= profSegs; i++) {
+    const t = i / profSegs;
     const y = -hw + t * width;
     const edge = Math.pow(Math.abs(t * 2 - 1), 6);
     const r = radius - edge * radius * 0.12 + Math.sin(t * Math.PI) * bulge * radius * 0.2;
@@ -359,7 +398,7 @@ export function tireGeometry(radius: number, width: number, tread: 'knobby' | 's
   // sidewall down to rim
   prof.unshift(new THREE.Vector2(rimR, -hw * 0.92));
   prof.push(new THREE.Vector2(rimR, hw * 0.92));
-  const radialSeg = tread === 'bald' || tread === 'street' ? 40 : 64;
+  const radialSeg = segs(tread === 'bald' || tread === 'street' ? 40 : 64, 20);
   const geo = new THREE.LatheGeometry(prof, radialSeg);
   // Displace tread blocks
   const pos = geo.attributes.position as THREE.BufferAttribute;
@@ -396,14 +435,14 @@ export function tireGeometry(radius: number, width: number, tread: 'knobby' | 's
 /** Rim / hub with spokes; axis along X. */
 export function rimGeometry(radius: number, width: number, spokes: number, style: 'steel' | 'spoke' | 'solid') {
   const parts: THREE.BufferGeometry[] = [];
-  const barrel = new THREE.CylinderGeometry(radius, radius, width * 0.85, 24, 1, true);
+  const barrel = new THREE.CylinderGeometry(radius, radius, width * 0.85, segs(24, 12), 1, true);
   barrel.rotateZ(Math.PI / 2);
   parts.push(normalizeGeo(barrel));
-  const disc = new THREE.CylinderGeometry(radius * 0.96, radius * 0.96, 0.02, 24);
+  const disc = new THREE.CylinderGeometry(radius * 0.96, radius * 0.96, 0.02, segs(24, 12));
   disc.rotateZ(Math.PI / 2);
   disc.translate(width * 0.18, 0, 0);
   if (style === 'solid') parts.push(normalizeGeo(disc));
-  const hub = new THREE.CylinderGeometry(radius * 0.28, radius * 0.32, width * 0.5, 12);
+  const hub = new THREE.CylinderGeometry(radius * 0.28, radius * 0.32, width * 0.5, segs(12));
   hub.rotateZ(Math.PI / 2);
   hub.translate(width * 0.12, 0, 0);
   parts.push(normalizeGeo(hub));
@@ -418,7 +457,7 @@ export function rimGeometry(radius: number, width: number, spokes: number, style
     }
   }
   // lug nuts
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < (activeDetail >= 1 ? 5 : 0); i++) {
     const a = (i / 5) * Math.PI * 2;
     const nut = new THREE.CylinderGeometry(0.018, 0.018, 0.03, 6);
     nut.rotateZ(Math.PI / 2);
@@ -478,7 +517,7 @@ export function trackBeltGeometry(length: number, radius: number, width: number,
     const link = new THREE.BoxGeometry(width, 0.05, (perim / links) * 0.8);
     const grouser = new THREE.BoxGeometry(width * 0.95, 0.05, 0.04);
     grouser.translate(0, 0.045, 0);
-    const lg = mergeGeometries([normalizeGeo(link), normalizeGeo(grouser)])!;
+    const lg = activeDetail >= 1 ? mergeGeometries([normalizeGeo(link), normalizeGeo(grouser)])! : normalizeGeo(link);
     lg.rotateX(-ang);
     lg.translate(0, y, z);
     parts.push(lg);
