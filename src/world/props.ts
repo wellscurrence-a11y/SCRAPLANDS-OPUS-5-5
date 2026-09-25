@@ -468,7 +468,7 @@ export class WorldProps {
     this.lamppost(s, 40, 0);
     this.finish(s, mats, 'home');
     this.garageDoor.set(home.x, this.game.terrain.heightAt(home.x, home.z - D / 2 - 3), home.z - D / 2 - 3);
-    this.garageSpawn.pos.set(home.x, 0, home.z - D / 2 - 12);
+    this.garageSpawn.pos.set(home.x, 0, home.z - D / 2 - 20);
     this.garageSpawn.yaw = 0;
   }
 

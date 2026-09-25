@@ -267,7 +267,7 @@ export class WeaponRuntime {
             size: this.kind === 'cannon' ? 0.2 : this.kind === 'autocannon' ? 0.1 : 0.06,
           });
         }
-        const flashSize = this.kind === 'cannon' ? 1.6 : this.kind === 'autocannon' ? 0.8 : this.kind === 'shotgun' ? 0.9 : 0.45;
+        const flashSize = this.kind === 'cannon' ? 1.6 : this.kind === 'autocannon' ? 0.8 : this.kind === 'shotgun' ? 0.9 : this.kind === 'chaingun' ? 0.32 : 0.28;
         ctx.fx.muzzleFlash(pos, dir, flashSize);
         if (flashSize > 0.7) ctx.fx.flash(pos, 0xffb060, flashSize * 12, 10 + flashSize * 6, 0.07, 1);
         if (this.kind === 'cannon') {
@@ -279,7 +279,8 @@ export class WeaponRuntime {
         // shell casings
         if (this.kind !== 'shotgun' && rand() < 0.7) {
           const side = new THREE.Vector3(1, 0, 0).transformDirection(this.part.world);
-          ctx.fx.chunks.spawn(this.part.worldCenter.clone(), side.multiplyScalar(randRange(2, 4)).add(new THREE.Vector3(0, 2, 0)).add(m.velocity), this.kind === 'cannon' ? 1.2 : 0.3, 3, ctx.fx.ground);
+          const big = this.kind === 'cannon' ? 3.2 : this.kind === 'autocannon' ? 1.8 : 1;
+          ctx.fx.casings.spawn(this.part.worldCenter.clone(), side.multiplyScalar(randRange(2, 4)).add(new THREE.Vector3(0, 2, 0)).add(m.velocity), big, 2.5, ctx.fx.ground);
         }
         ctx.audio.play(`fire_${this.kind}`, pos, { volume: 1, pitch: randRange(0.94, 1.06) });
         ctx.events.emit('shot', { machine: m, kind: this.kind, pos, size: flashSize });

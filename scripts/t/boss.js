@@ -1,0 +1,42 @@
+// Excavator boss: spawn, stand, walk toward the player, take component damage, die.
+const app = window.__app;
+const out = {};
+localStorage.clear();
+app.beginGame((await import('/src/gameplay/profile.ts')).newProfile(), false);
+game.frame(1 / 60);
+const { spawnExcavator } = await import('/src/gameplay/boss.ts');
+const pl = game.player;
+const T = pl.currPos.constructor;
+const bp = new T(pl.currPos.x + 10, 0, pl.currPos.z + 70);
+const boss = spawnExcavator(app, bp);
+const gy = () => game.terrain.heightAt(boss.currPos.x, boss.currPos.z);
+game.simulate(3);
+out.afterSettle = { h: +(boss.currPos.y - gy()).toFixed(2), up: +boss.up().y.toFixed(2), alive: boss.alive, pow: +boss.powerRatio.toFixed(2), legs: boss.controller.legs?.length };
+const cam = () => { const p = boss.currPos; game.debugCam = { pos: new T(p.x + 16, p.y + 3, p.z - 14), target: new T(p.x, p.y - 1.5, p.z) }; game.frameUpdate(1 / 60, 1); };
+cam();
+await shot('stand');
+const p0 = boss.currPos.clone();
+game.simulate(6);
+out.walk = { moved: +boss.currPos.distanceTo(p0).toFixed(1), h: +(boss.currPos.y - gy()).toFixed(2), up: +boss.up().y.toFixed(2), distToPlayer: +boss.currPos.distanceTo(pl.currPos).toFixed(1), state: app.director.pilots.get(boss)?.state };
+cam();
+await shot('walk');
+// knock out a knee on one leg
+const knee = boss.parts.find((p) => p.def.id === 'act_excavator' && p.placed.socket === 'kneejoint');
+boss.damagePartDirect(knee, 99999, pl, 'test');
+game.simulate(3);
+out.kneeDestroyed = { destroyed: knee.destroyed, h: +(boss.currPos.y - gy()).toFixed(2), up: +boss.up().y.toFixed(2) };
+cam();
+await shot('limp');
+// kill via the reactor and frame
+const reactor = boss.parts.find((p) => p.def.id === 'gen_excavator');
+boss.damagePartDirect(reactor, 99999, pl, 'test');
+const frame = boss.parts.find((p) => p.def.category === 'frame');
+boss.damagePartDirect(frame, 99999, pl, 'test');
+game.simulate(2);
+out.dead = { alive: boss.alive, reactor: reactor.destroyed, bar: !!document.getElementById('boss-bar') };
+cam();
+await shot('dead');
+out.kills = app.profile.stats.kills;
+out.salvageable = boss.parts.filter((p) => !p.destroyed).map((p) => p.def.id).filter((id) => /excavator|bucket/.test(id));
+out.bucket = (() => { const b = boss.parts.find((p) => p.def.id === 'mel_bucket'); return { destroyed: b.destroyed, detached: b.detached, hp: Math.round(b.hp) }; })();
+return out;

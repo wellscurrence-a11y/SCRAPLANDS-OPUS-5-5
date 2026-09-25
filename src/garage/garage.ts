@@ -765,6 +765,11 @@ export class Garage {
       if (!this.dragging) this.target.lerp(wantTarget, damp(1.5, dt) * 0.1);
     }
     if (this.placing) this.updateHover();
+    // paint patterns and wear live in machine space, as they do in the world
+    if (this.asm && this.mats) {
+      this.asm.root.updateMatrixWorld(true);
+      this.mats.uniforms.uRootInv.value.copy(this.asm.root.matrixWorld).invert();
+    }
     this.env.update(this.time);
     if (this.env.craneHook) this.env.craneHook.position.y = 7.5 - 1.6 + Math.sin(this.time * 0.6) * 0.15;
     // gentle rotor idle spin in the garage for life

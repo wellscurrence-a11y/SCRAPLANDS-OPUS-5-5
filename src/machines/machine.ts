@@ -123,6 +123,9 @@ export class Machine {
   cargoMass = 0;
   tag: Record<string, any> = {};
   lastDamageTime = -100;
+  /** Last machine to hurt us, credited when fire, leaks or heat finish the job. */
+  lastAttacker: Machine | null = null;
+  lastAttackTime = -100;
   damageTaken = 0;
   /** Seconds since spawn */
   age = 0;
@@ -455,6 +458,25 @@ export class Machine {
     }
   }
 
+  /** Move the machine instantly (towing, tests), upright and at rest, feet on the ground. */
+  teleport(pos: THREE.Vector3, yaw: number) {
+    const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+    this.body.setTranslation({ x: pos.x, y: pos.y, z: pos.z }, true);
+    this.body.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
+    this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    this.currPos.copy(pos);
+    this.prevPos.copy(pos);
+    this.currQuat.copy(q);
+    this.prevQuat.copy(q);
+    const wc = this.body.worldCom();
+    this.worldCom.set(wc.x, wc.y, wc.z);
+    this.velocity.set(0, 0, 0);
+    this.angVel.set(0, 0, 0);
+    this.controller.resetPose?.();
+    this.updateHitMatrices();
+  }
+
   postPhysics() {
     const t = this.body.translation();
     const r = this.body.rotation();
@@ -596,6 +618,10 @@ export class Machine {
     p.hp -= amount;
     p.lastHitTime = this.ctx.time;
     this.lastDamageTime = this.ctx.time;
+    if (source && source !== this) {
+      this.lastAttacker = source;
+      this.lastAttackTime = this.ctx.time;
+    }
     this.damageTaken += amount;
     const lvl = damageLevelFor(p.hp / p.maxHp);
     if (lvl !== p.damageLevel && p.hp > 0) {
@@ -706,6 +732,7 @@ export class Machine {
     this.alive = false;
     this.wreck = true;
     this.deathTime = this.ctx.time;
+    if (!source && this.lastAttacker && this.ctx.time - this.lastAttackTime < 30) source = this.lastAttacker;
     this.killedBy = source;
     if (cause === 'bailed') {
       // Pilot abandoned the machine: no explosion, everything left intact for salvage.

@@ -35,9 +35,9 @@ function computeBounds(node: NodeTemplate, parent: THREE.Matrix4, out: THREE.Box
 function addRarityAccent(b: PartBuilder, def: PartDef, bounds: THREE.Box3) {
   const ri = rarityIndex(def.rarity);
   if (ri < 1) return;
-  if (['frame', 'wheel', 'leg', 'actuator', 'foot', 'suspension'].includes(def.category)) {
-    if (ri < 3) return;
-  }
+  // Articulated or spinning parts move away from their rest-pose bounds: no floating strips.
+  if (['leg', 'arm', 'wheel', 'track', 'rotor', 'suspension'].includes(def.category)) return;
+  if (['frame', 'actuator', 'foot'].includes(def.category) && ri < 3) return;
   const size = bounds.getSize(new THREE.Vector3());
   const c = bounds.getCenter(new THREE.Vector3());
   const len = Math.min(0.35, Math.max(0.08, size.x * 0.4));

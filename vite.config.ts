@@ -8,8 +8,17 @@ export default defineConfig({
   },
   build: {
     target: 'es2022',
-    chunkSizeWarningLimit: 4000,
+    // Rapier ships its WASM inlined (~2.5 MB); vendors are split so game updates stay small.
+    chunkSizeWarningLimit: 3000,
     sourcemap: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id: string) {
+          if (id.includes('@dimforge/rapier3d')) return 'rapier';
+          if (id.includes('node_modules/three')) return 'three';
+        },
+      },
+    },
   },
   server: { host: true, port: 5173 },
   preview: { port: 4173 },

@@ -179,6 +179,7 @@ export function spawnExcavator(app: App, pos: THREE.Vector3): Machine {
     patrolRadius: 110,
     detection: 320,
     doctrine: 'locomotion',
+    alwaysAware: true,
   });
   pilot.preferredRange = 22;
   pilot.provoked = true;
@@ -190,8 +191,8 @@ export function spawnExcavator(app: App, pos: THREE.Vector3): Machine {
 
 // ------------------------------------------------------------------ HUD bar
 const BOSS_CSS = `
-#boss-bar{position:absolute;top:18px;left:50%;transform:translateX(-50%);width:min(560px,70vw);pointer-events:none;z-index:6;text-align:center;font-family:var(--font-ui,sans-serif)}
-#boss-bar .bn{font-family:var(--font-display,sans-serif);letter-spacing:.3em;font-size:15px;color:#f3d38a;text-shadow:0 1px 6px #000}
+#boss-bar{position:absolute;top:18px;left:50%;transform:translateX(-50%);width:min(560px,70vw);pointer-events:none;z-index:6;text-align:center;font-family:var(--font)}
+#boss-bar .bn{font-weight:700;letter-spacing:.3em;font-size:17px;color:#f3d38a;text-shadow:0 1px 6px #000}
 #boss-bar .bb{height:9px;background:rgba(0,0,0,.55);border:1px solid rgba(243,211,138,.45);margin-top:5px;position:relative}
 #boss-bar .bb i{position:absolute;inset:0;right:auto;background:linear-gradient(90deg,#b8321e,#e8702a);transition:width .25s}
 #boss-bar .bc{display:flex;gap:6px;justify-content:center;margin-top:6px;flex-wrap:wrap}

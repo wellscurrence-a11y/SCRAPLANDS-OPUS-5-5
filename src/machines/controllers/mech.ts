@@ -126,6 +126,10 @@ export class MechController implements Controller {
     this.walkSpeed = Math.max(0.6, this.m.stats.walkSpeed || 2.5);
   }
 
+  resetPose() {
+    for (const l of this.legs) l.initialised = false;
+  }
+
   onPartChanged(p: PartRuntime) {
     this.rebuild();
     if (p.def.category === 'leg' || p.def.category === 'actuator' || p.def.category === 'foot') {

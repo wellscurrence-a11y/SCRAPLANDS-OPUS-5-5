@@ -22,5 +22,7 @@ export interface Controller {
   telemetry(): Telemetry;
   /** Try to put the machine back on its feet/wheels. */
   selfRight?(): boolean;
+  /** Forget cached contact state after the machine is moved instantly. */
+  resetPose?(): void;
   dispose?(): void;
 }

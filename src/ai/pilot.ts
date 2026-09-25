@@ -26,6 +26,8 @@ export interface AIOptions {
   path?: THREE.Vector3[];
   leader?: Machine | null;
   passive?: boolean;
+  /** Knows where hostiles are within detection range without line of sight (bosses). */
+  alwaysAware?: boolean;
 }
 
 export class AIPilot {
@@ -52,6 +54,8 @@ export class AIPilot {
   gotoPoint: THREE.Vector3 | null = null;
   provoked = false;
   t = rand() * 100;
+  private losT = 0;
+  private hasLos = true;
 
   constructor(m: Machine, opts: AIOptions) {
     this.m = m;
@@ -183,7 +187,7 @@ export class AIPilot {
       const d = o.currPos.distanceTo(m.currPos);
       const engaged = this.target === o;
       const range = engaged ? bestD * 1.6 : bestD;
-      if (d < range && (engaged || this.canSee(o))) {
+      if (d < range && (engaged || this.opts.alwaysAware || this.canSee(o))) {
         best = o;
         bestD = d;
       }
@@ -396,6 +400,15 @@ export class AIPilot {
     tp.z += swayNoise.noise2(this.t * 0.9, m.id + 100) * sway;
     input.aimPoint = tp;
     input.lockTarget = { machine: t, part };
+    // Aware-but-blind pilots (bosses) hold fire until they have a line of sight
+    if (this.opts.alwaysAware) {
+      this.losT -= 1 / 60;
+      if (this.losT <= 0) {
+        this.losT = 0.3;
+        this.hasLos = this.canSee(t);
+      }
+      if (!this.hasLos && dist > t.boundRadius + 6) return;
+    }
     // Fire groups whose weapons are roughly aligned and in range
     for (const w of m.weapons) {
       if (!w.part.functional || w.disabled) continue;

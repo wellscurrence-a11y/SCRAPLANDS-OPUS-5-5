@@ -474,6 +474,8 @@ export class FX {
   beams: BeamPool;
   chunks: ChunkPool;
   rockChunks: ChunkPool;
+  /** Spent brass ejected by guns. */
+  casings: ChunkPool;
   scorch: ScorchPool;
   flashes: Flash[] = [];
   smokeMat: THREE.ShaderMaterial;
@@ -527,8 +529,11 @@ export class FX {
     this.chunks = new ChunkPool(500, metal, chunkGeo);
     const rock = new THREE.MeshStandardMaterial({ color: 0x6d5645, roughness: 0.95 });
     this.rockChunks = new ChunkPool(500, rock, new THREE.IcosahedronGeometry(0.1, 0));
+    const brass = new THREE.MeshStandardMaterial({ color: 0xd9a646, metalness: 1, roughness: 0.28, emissive: 0x2a1a04 });
+    this.casings = new ChunkPool(300, brass, new THREE.CylinderGeometry(0.022, 0.022, 0.1, 8).rotateZ(Math.PI / 2));
+    this.casings.mesh.castShadow = false;
     this.scorch = new ScorchPool(96);
-    this.group.add(this.smokePool.mesh, this.add.mesh, this.beams.mesh, this.chunks.mesh, this.rockChunks.mesh, this.scorch.mesh);
+    this.group.add(this.smokePool.mesh, this.add.mesh, this.beams.mesh, this.chunks.mesh, this.rockChunks.mesh, this.casings.mesh, this.scorch.mesh);
     // Lights stay "visible" permanently (intensity 0 when idle) so the shader light count never changes.
     for (let i = 0; i < 4; i++) {
       const l = new THREE.PointLight(0xffaa55, 0, 30, 2);
@@ -832,6 +837,7 @@ export class FX {
     this.beams.update(dt);
     this.chunks.update(dt, 12);
     this.rockChunks.update(dt, 12);
+    this.casings.update(dt, 12);
     const u = this.smokeMat.uniforms;
     u.uAmbient.value.copy(ambient);
     u.uSun.value.copy(sun);
