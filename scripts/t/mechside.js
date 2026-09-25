@@ -1,0 +1,16 @@
+const m = api.spawn('mech');
+game.simulate(2);
+game.chase.yaw = Math.PI;
+api.input.scripted.set('forward', 1);
+game.simulate(2.3);
+const p = m.currPos.clone();
+const T = p.constructor;
+game.debugCam = { pos: new T(p.x + 7, p.y - 0.5, p.z + 1), target: new T(p.x, p.y - 1.3, p.z) };
+game.frameUpdate(1/60, 1);
+await shot('side1');
+game.simulate(0.2);
+game.debugCam = { pos: new T(m.currPos.x + 7, m.currPos.y - 0.5, m.currPos.z + 1), target: new T(m.currPos.x, m.currPos.y - 1.3, m.currPos.z) };
+game.frameUpdate(1/60, 1);
+await shot('side2');
+api.input.scripted.delete('forward');
+return { legs: m.controller.legs.map(l => [l.planted, l.footPos.toArray().map(v=>v.toFixed(2))]) };

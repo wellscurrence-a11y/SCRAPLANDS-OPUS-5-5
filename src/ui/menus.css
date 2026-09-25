@@ -1,0 +1,28 @@
+#loading { position: absolute; inset: 0; background: #0b0908; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 50; pointer-events: auto; transition: opacity 0.8s; }
+#loading.done { opacity: 0; pointer-events: none; }
+.logo { font-size: 92px; font-weight: 700; letter-spacing: 0.26em; color: var(--text); text-shadow: 0 6px 40px rgba(255, 140, 40, 0.25); line-height: 1; margin-left: 0.26em; }
+.logo span { color: var(--accent); }
+.logo-sub { font-size: 16px; letter-spacing: 0.6em; color: var(--text-2); text-transform: uppercase; margin-top: 10px; margin-left: 0.6em; }
+.load-bar { width: 420px; height: 3px; background: rgba(255,255,255,0.1); margin-top: 60px; }
+.load-bar i { display: block; height: 100%; background: var(--accent); width: 0; transition: width 0.2s; }
+.load-label { margin-top: 12px; font-size: 14px; letter-spacing: 0.2em; color: var(--text-2); text-transform: uppercase; }
+#title { position: absolute; inset: 0; pointer-events: auto; display: none; background: linear-gradient(90deg, rgba(8,6,4,0.88) 0%, rgba(8,6,4,0.55) 34%, rgba(8,6,4,0) 60%); }
+#title.on { display: block; }
+#title .inner { position: absolute; left: 7vw; top: 20vh; }
+#title .logo { font-size: 84px; text-align: left; margin-left: 0; }
+#title .logo-sub { margin-left: 0; }
+.menu-list { display: flex; flex-direction: column; gap: 6px; margin-top: 60px; width: 320px; }
+.menu-item { font-size: 26px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-2); cursor: pointer; padding: 6px 0 6px 0; transition: color 0.12s, padding 0.15s; border-left: 3px solid transparent; }
+.menu-item:hover { color: #fff; padding-left: 14px; border-left-color: var(--accent); }
+.menu-item.dis { opacity: 0.3; pointer-events: none; }
+.menu-foot { position: absolute; left: 7vw; bottom: 5vh; font-size: 13px; color: var(--text-3); letter-spacing: 0.1em; }
+.save-info { font-size: 14px; color: var(--text-2); margin-top: 4px; letter-spacing: 0.06em; }
+#pause .box { width: 560px; padding: 28px 32px; }
+.settings-grid { display: grid; grid-template-columns: 160px 1fr 60px; gap: 12px 14px; align-items: center; margin-top: 12px; }
+.settings-grid select { background: rgba(0,0,0,0.4); color: var(--text); border: 1px solid var(--line-2); font-size: 16px; padding: 4px 8px; }
+.controls-grid { display: grid; grid-template-columns: 170px 1fr; gap: 4px 14px; font-size: 15px; margin-top: 10px; }
+.controls-grid .k { color: var(--accent); font-family: var(--mono); font-size: 13px; }
+#disabled-ov .box { text-align: center; padding: 30px 40px; }
+.story { max-width: 640px; font-size: 20px; line-height: 1.55; color: var(--text); text-align: left; }
+.story p { margin: 0 0 16px; }
+.story .sig { color: var(--accent); font-weight: 700; letter-spacing: 0.1em; }

@@ -1,0 +1,28 @@
+{
+  "name": "scraplands",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "SCRAPLANDS — an open-world machine-building action RPG",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "e2e": "node scripts/e2e.mjs"
+  },
+  "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.20.0",
+    "@fontsource/barlow-condensed": "^5.3.0",
+    "@fontsource/share-tech-mono": "^5.3.0",
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "@types/three": "^0.186.0",
+    "playwright": "^1.63.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.6",
+    "vitest": "^5.0.1"
+  }
+}

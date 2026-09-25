@@ -1,0 +1,19 @@
+.modal { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); pointer-events: auto; padding: 20px 22px; max-height: 86vh; display: flex; flex-direction: column; }
+.modal .head { display: flex; justify-content: space-between; align-items: baseline; gap: 20px; margin-bottom: 12px; }
+.modal .foot { display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px; align-items: center; }
+.modal .close { position: absolute; right: 12px; top: 10px; cursor: pointer; color: var(--text-2); font-size: 20px; pointer-events: auto; }
+.modal .close:hover { color: var(--accent); }
+.plist { display: flex; flex-direction: column; gap: 3px; overflow-y: auto; pointer-events: auto; }
+.prow { display: grid; grid-template-columns: 22px 1fr 90px 70px 64px; gap: 10px; align-items: center; padding: 6px 8px; background: rgba(255,255,255,0.025); border: 1px solid transparent; cursor: pointer; font-size: 15px; }
+.prow:hover { border-color: var(--line-2); background: rgba(255,174,59,0.06); }
+.prow.sel { border-color: var(--accent); background: rgba(255,174,59,0.1); }
+.prow.dis { opacity: 0.4; pointer-events: none; }
+.prow .chk { width: 14px; height: 14px; border: 1px solid var(--line-2); }
+.prow.sel .chk { background: var(--accent); border-color: var(--accent); }
+.prow .pname { font-weight: 700; letter-spacing: 0.03em; }
+.prow .pcat { font-size: 12px; color: var(--text-2); letter-spacing: 0.08em; text-transform: uppercase; }
+.prow .num { font-family: var(--mono); font-size: 13px; color: var(--text-2); text-align: right; }
+.cargo-line { display: flex; align-items: center; gap: 10px; }
+.cargo-line .bar { flex: 1; height: 8px; }
+.res-grid { display: grid; grid-template-columns: repeat(6, auto); gap: 4px 14px; font-size: 13px; }
+.res-grid .rv { font-family: var(--mono); color: var(--accent); }
