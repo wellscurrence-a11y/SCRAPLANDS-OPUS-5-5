@@ -36,7 +36,34 @@ out.obj2 = tut.objectives.map((o) => o.done);
 const inv0 = app.profile.inventory.length;
 app.enterGarage(true);
 game.frame(1 / 60);
-out.garage = { mode: app.mode, inv: app.profile.inventory.length - inv0, cargo: app.profile.cargo.length, done: app.profile.missions.done, active: app.missions.active.map((m) => m.id) };
+out.garage = { mode: app.mode, inv: app.profile.inventory.length - inv0, cargo: app.profile.cargo.length, done: [...app.profile.missions.done], active: app.missions.active.map((m) => m.id) };
+// second story contract: install a part through the builder's own hover/place path, then deploy
+const g = app.garage;
+const V3 = game.camera.position.constructor;
+const item = app.profile.inventory.find((i) => i.defId === 'arm_scrap_s') ?? app.profile.inventory[0];
+g.startPlacing(item);
+g.frameMachine(true);
+g.camera.updateMatrixWorld();
+g.camera.updateProjectionMatrix();
+const parts0 = g.design.parts.length;
+let tried = 0;
+for (const mk of g.markers.children) {
+  mk.updateMatrixWorld();
+  const p = new V3().setFromMatrixPosition(mk.matrixWorld).project(g.camera);
+  if (Math.abs(p.x) > 1 || Math.abs(p.y) > 1) continue;
+  tried++;
+  g.mouse.set(p.x, p.y);
+  g.updateHover();
+  if (g.hover && g.hover.valid) { g.place(); break; }
+}
+out.install = { tried, added: g.design.parts.length - parts0, m_build: app.missions.active.find((m) => m.id === 'm_build')?.objectives.map((o) => o.done) };
+g.cancelPlacing();
+app.enterWorld(app.profile.activeMachine);
+game.frame(1 / 60);
+out.install.doneAfterDeploy = app.profile.missions.done.includes('m_build');
+out.install.next = app.missions.active.map((m) => m.id);
+app.enterGarage(true);
+game.frame(1 / 60);
 // research
 const R = await import('/src/gameplay/research.ts');
 const avail = R.TECH.filter((t) => R.researchStatus(app.profile, t) === 'available');

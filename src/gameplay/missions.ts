@@ -13,6 +13,7 @@ import { RNG } from '../core/random';
 import { uid, clamp } from '../core/math';
 import { getPart } from '../machines/parts/catalog';
 import { generateEnemy } from '../ai/designs';
+import { baysFor } from './research';
 import type { MachineDesign } from '../machines/types';
 import { spawnExcavator } from './boss';
 
@@ -153,6 +154,7 @@ class RangeTutorial extends Mission {
     }
   }
   override onEnterGarage() {
+    this.update(); // count a salvage that finished this very tick
     if (this.objectives[1].done && this.objectives[2].done) {
       this.objectives[3].done = true;
       this.complete();
@@ -176,6 +178,8 @@ class FirstBuild extends Mission {
       { text: 'Install any part on a machine (Build tab)', done: false },
       { text: 'Deploy', done: false },
     ];
+    // Usually unlocked by the tutorial finishing as you walk in: already in the workshop
+    if (this.app.mode === 'garage') this.onEnterGarage();
   }
   override onEnterGarage() {
     this.objectives[0].done = true;
@@ -393,7 +397,9 @@ class HelixSignal extends Mission {
   }
   override update() {
     const L = getLocation('helix');
-    if (this.objectives[0].done && !this.data.spawned) {
+    // the relay may have been found before the contract started
+    if (this.profile.discovered.includes('helix')) this.objectives[0].done = true;
+    if (this.objectives[0].done && !this.objectives[1].done && !this.data.spawned) {
       this.data.spawned = true;
       for (let i = 0; i < 4; i++) this.spawnEnemy({ faction: 'helix', tier: 3, pos: this.groundPoint(L.x + Math.cos(i * 1.57) * 40, L.z + Math.sin(i * 1.57) * 40), role: i < 3 ? 'drone' : 'scout', elite: i === 3 });
     }
@@ -445,6 +451,14 @@ class FortRaid extends Mission {
         this.objectives[2].done = true;
         this.complete();
       }
+    }
+  }
+  override onEnterGarage() {
+    // towed home with the core: it was lost with the machine
+    if (this.objectives[1].done && !this.objectives[2].done) {
+      this.objectives[1].done = false;
+      this.data.alarm = false;
+      this.app.hud.notify('The prototype core was lost when your machine went down.', 'bad');
     }
   }
   override interaction(m: Machine) {
@@ -753,7 +767,7 @@ class Job extends Mission {
           t.design.parts.forEach((orig, i) => map.set(orig.uid, design.parts[i].uid));
           design.parts = design.parts.filter((_, i) => attached.has(t.design.parts[i].uid));
           for (const part of design.parts) if (part.parent) part.parent = map.get(part.parent) ?? part.parent;
-          const bays = Math.max(3, p.workshop.bays);
+          const bays = baysFor(p);
           if (p.machines.length < bays) {
             p.machines.push(design);
             this.app.hud.notify(`${design.name} has been towed to your garage!`, 'good');
@@ -920,7 +934,7 @@ export class MissionSystem {
         delivery: `Take a crate of spares from Rustwater to ${dest ? getLocation(dest).name : ''}. Arrive in one piece.`,
         race: 'Gates, a timer and bragging rights. Any machine allowed — wheels, rotors or legs.',
         defend: `${L.name} expects an attack. Hold off three waves.`,
-        capture: `Disable the machine's locomotion without killing the pilot, then commandeer it. You keep the machine.`,
+        capture: `Disable the machine's locomotion without killing the pilot, then commandeer it. It joins your garage if you have a free vehicle bay — otherwise it is stripped into storage.`,
         rescue: `A scavenger is pinned down near ${L.name}. Hold the area, then bring them home.`,
       };
       const reward: Reward = { credits: Math.round(base * (kind === 'capture' ? 0.6 : 1)), xp: 120 + tier * 90, resources: { scrap: 10 + tier * 10, data: tier } };

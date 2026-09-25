@@ -5,7 +5,7 @@ import { createServer } from 'vite';
 import { chromium } from 'playwright';
 import fs from 'node:fs';
 
-const server = await createServer({ server: { port: 0, strictPort: false }, logLevel: 'error' });
+const server = await createServer({ server: { port: 0, strictPort: false, hmr: false, watch: null }, logLevel: 'error' });
 await server.listen();
 const port = server.httpServer.address().port;
 const base = `http://localhost:${port}/`;
@@ -44,6 +44,7 @@ const scenarios = [
       check('salvaged part goes to cargo', r.cargo.length === 1 && r.salvaged === 1, r.cargo);
       check('garage unloads cargo into storage', r.garage.inv === 1 && r.garage.cargo === 0, r.garage);
       check('tutorial completes and unlocks the next story contract', r.garage.done.includes('m_range') && r.garage.active.includes('m_build'), r.garage);
+      check('a part installed in the builder completes the next contract on deploy', r.install.added >= 1 && r.install.doneAfterDeploy && r.install.next.includes('m_rats'), r.install);
       check('research tree has options', r.researchAvailable.length > 3, r.researchAvailable);
       check('save round-trips', r.saveRoundTrip === true, r.saveRoundTrip);
       check('merchant sells and delivers', r.buy.inv === 1 && r.buy.paid > 0 && !r.buy.stillInStock, r.buy);
@@ -58,6 +59,13 @@ const scenarios = [
       check('boss limps on a lost knee but stays up', r.kneeDestroyed.destroyed && r.kneeDestroyed.up > 0.8, r.kneeDestroyed);
       check('boss dies and credits the player', r.dead.alive === false && r.kills >= 1, r);
       check('unique parts survive for salvage (attached or blown clear as loot)', r.salvageable.length >= 4 && !r.bucket.destroyed, { salvageable: r.salvageable, bucket: r.bucket });
+    },
+  ],
+  [
+    'job board contracts',
+    'scripts/t/jobs.js',
+    (r) => {
+      for (const k of ['bounty', 'delivery', 'race', 'salvage', 'capture', 'defend', 'rescue']) check(`${k} contract completes and pays`, r[k]?.done === true && r[k].paid >= 100, r[k]);
     },
   ],
   [
