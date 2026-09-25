@@ -162,7 +162,8 @@ class RangeTutorial extends Mission {
   }
   override onEnterWorld() {
     // targets are cleared when entering the garage; respawn if we come back mid-mission
-    this.targets = [];
+    // (keep any that still exist so they are never spawned on top of each other)
+    this.targets = this.targets.filter((t) => this.game.ctx.machines.includes(t));
   }
   override markers(): CompassMarker[] {
     const home = getLocation('home');

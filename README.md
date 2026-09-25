@@ -104,9 +104,9 @@ All art and audio is procedural. Meshes are built in code by `machines/parts/kit
 ```bash
 npm run typecheck
 npm test          # vitest: catalogue, stats, enemy generator, boss design, physics heightfield
-npm run e2e       # headless Chromium: progression loop, boss fight, app screens
+npm run e2e       # headless Chromium: progression loop, boss fight, every contract, app screens
 ```
 
-- `npm run e2e` starts its own Vite server. It drives the real game through the build → fight → salvage → workshop loop, the Excavator fight and every screen, then asserts on the results.
+- `npm run e2e` starts its own Vite server. It drives the real game through the build → fight → salvage → workshop loop, every job-board and story contract, the Excavator fight and every screen, then asserts on the results.
 - `http://localhost:5173/?debug` opens a sandbox with a starter machine and a scripting API (`window.__api`).
 - `scripts/harness.mjs <script> <prefix>` runs a script from `scripts/t/` against the sandbox and saves screenshots.
