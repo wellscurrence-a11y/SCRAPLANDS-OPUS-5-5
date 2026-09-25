@@ -678,7 +678,74 @@ export class WorldProps {
       s.b.box('lamp', 2.6, 0.6, 0.1, [x, y + 14, z - 0.3]);
       s.solid(x, y + 7, z, 0.5, 14, 0.5);
     }
+    // a derelict bucket-wheel excavator parked on the lowest bench: the Excavator's dead sibling
+    this.bucketWheelWreck(s, 58, -34, -2.3);
+    // an abandoned haul truck on a bench
+    this.haulTruck(s, -52, -78, 0.9);
     this.finish(s, this.mats.scrap, 'pit');
+  }
+
+  private bucketWheelWreck(s: Site, x: number, z: number, rot: number) {
+    const y = s.gy(x, z);
+    const b = s.b;
+    b.node('_bwe', [x, y, z], [0, rot, 0]);
+    // crawlers
+    for (const cx of [-4.5, 4.5]) {
+      b.box('dark', 3.2, 2.6, 15, [cx, 1.3, 0], [0, 0, 0], 0.2);
+      for (let k = 0; k < 6; k++) b.cylX('rubber', 1.0, 3.3, [cx, 1.1, -6 + k * 2.4], 14);
+    }
+    // turntable and superstructure
+    b.cyl('rust', 6, 1.2, [0, 3.2, 0], [0, 0, 0], 28);
+    b.box('paint', 11, 6, 13, [0, 6.8, 1], [0, 0, 0], 0.2);
+    b.box('rust', 9, 4, 7, [0, 11.8, 3], [0, 0, 0], 0.15);
+    b.grille('dark', 7, 2, 10, [0, 11.8, 6.55], 0.1);
+    for (let k = 0; k < 4; k++) b.box('dark', 0.9, 0.6, 1.2, [-3 + k * 2, 14, 3], [0, 0, 0], 0.05);
+    b.hazardPanel(11.1, 0.8, 0.2, [0, 4.4, -5.5]);
+    // mast and stay cables
+    b.box('dark', 1.2, 14, 1.2, [0, 17, 0], [0.12, 0, 0], 0.05);
+    b.box('dark', 0.2, 0.2, 30, [0, 17, -12], [-0.42, 0, 0]);
+    b.box('dark', 0.2, 0.2, 18, [0, 16, 9], [0.62, 0, 0]);
+    // main boom reaching out toward the bench face, bucket wheel at its tip
+    b.node('_boom', [0, 9, -5], [0.28, 0, 0]);
+    b.box('paint', 2.4, 2.4, 34, [0, 0, -17], [0, 0, 0], 0.1);
+    for (let k = 0; k < 8; k++) b.box('dark', 2.6, 0.2, 0.2, [0, 1.3, -3 - k * 4], [0, 0, 0]);
+    b.node('_wheel', [0, 0, -35], [0, 0, 0]);
+    b.torus('rust', 6, 0.5, [0, 0, 0], [0, PI / 2, 0], 32);
+    b.torus('rust', 6, 0.5, [0, 0, 0], [0, PI / 2, 0], 32);
+    b.cylX('dark', 1.2, 2.6, [0, 0, 0], 16);
+    for (let k = 0; k < 12; k++) {
+      const a = (k / 12) * PI * 2;
+      b.box('rust', 2.2, 1.6, 1.8, [0, Math.cos(a) * 6.4, Math.sin(a) * 6.4], [a, 0, 0], 0.1);
+      b.box('dark', 0.15, 5.6, 0.3, [0, Math.cos(a) * 3, Math.sin(a) * 3], [a, 0, 0]);
+    }
+    b.end();
+    b.end();
+    // counterweight boom
+    b.node('_cw', [0, 10, 6], [-0.1, 0, 0]);
+    b.box('paint', 2, 2, 16, [0, 0, 8], [0, 0, 0], 0.1);
+    b.box('dark', 5, 4, 4, [0, -1, 16], [0, 0, 0], 0.15);
+    b.end();
+    b.end();
+    s.solid(x, y + 5, z, 12, 10, 15, rot, 'metal');
+  }
+
+  private haulTruck(s: Site, x: number, z: number, rot: number) {
+    const y = s.gy(x, z);
+    const b = s.b;
+    b.node('_haul', [x, y, z], [0, rot, 0.06]);
+    b.box('dark', 4.6, 1.2, 10, [0, 2.2, 0], [0, 0, 0], 0.1);
+    b.box('paint', 5.6, 3.2, 6.5, [0, 4.6, 1.6], [-0.18, 0, 0], 0.15);
+    b.box('rust', 5.2, 0.3, 6, [0, 6.3, 1.4], [-0.18, 0, 0]);
+    b.box('paint', 2.4, 2.4, 2.6, [-1.4, 4.2, -3.4], [0, 0, 0], 0.1);
+    b.box('glass', 2.0, 0.9, 0.1, [-1.4, 4.7, -4.72], [0, 0, 0]);
+    b.box('dark', 5.4, 0.8, 0.9, [0, 2.8, -4.6], [0, 0, 0], 0.05);
+    for (const [dx, dz] of [[-2.6, -3.2], [2.6, -3.2], [-2.6, 3.3], [2.6, 3.3]] as [number, number][]) {
+      b.cylX('rubber', 1.45, 1.1, [dx, 1.45, dz], 20);
+      b.cylX('metal', 0.7, 1.15, [dx, 1.45, dz], 12);
+    }
+    b.hazardPanel(4.7, 0.3, 0.1, [0, 2.3, -5.05]);
+    b.end();
+    s.solid(x, y + 3, z, 5.6, 6, 10, rot, 'metal');
   }
 
   // ------------------------------------------------------------------ FORT
@@ -980,7 +1047,7 @@ export class WorldProps {
     const perVariant: THREE.Matrix4[][] = rockGeos.map(() => []);
     const perVariantRed: THREE.Matrix4[][] = rockGeos.map(() => []);
     const world = this.game.physics.world;
-    const nearLoc = (x: number, z: number, pad = 0.9) => LOCATIONS.some((l) => l.flatten && Math.hypot(l.x - x, l.z - z) < l.flatten * pad);
+    const nearLoc = (x: number, z: number, pad = 0.9) => LOCATIONS.some((l) => l.flatten && Math.hypot(l.x - x, l.z - z) < l.flatten * pad) || Math.hypot(x - PIT.x, z - PIT.z) < PIT.radius + 45;
     const nearRoad = (x: number, z: number) => {
       const s = terrain.surfaceAt(x, z);
       return s === 'asphalt' || s === 'gravel';

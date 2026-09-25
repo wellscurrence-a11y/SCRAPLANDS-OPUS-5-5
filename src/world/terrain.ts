@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CELL, GRID, generateHeightfield, HeightfieldData, naturalHeight, sampleHeight, sampleSplat, Surface } from './heightfield';
-import { HALF_WORLD, PLATEAU } from './layout';
+import { HALF_WORLD, PLATEAU, PIT } from './layout';
 import { extendMaterial, G } from '../render/globals';
 import { getDetailNormalTexture, getNoiseTexture } from '../render/textures';
 import { clamp } from '../core/math';
@@ -300,6 +300,7 @@ function createTerrainMaterial(
     uDetailN: { value: detailN },
     uWorldHalf: { value: HALF_WORLD },
     uPlateau: { value: new THREE.Vector3(PLATEAU.x, PLATEAU.z, PLATEAU.radius) },
+    uPit: { value: new THREE.Vector3(PIT.x, PIT.z, PIT.radius) },
     uWetness: G.wetness,
     uNight: G.nightFactor,
   };
@@ -327,6 +328,7 @@ function createTerrainMaterial(
         uniform sampler2D uSplat, uAux, uNoise, uDetailN;
         uniform float uWorldHalf, uWetness, uNight;
         uniform vec3 uPlateau;
+        uniform vec3 uPit;
         float tAO = 1.0;
         float tFarShadow = 1.0;
         vec3 tDetailN = vec3(0.0);
@@ -378,6 +380,12 @@ function createTerrainMaterial(
         vec3 rockRed = mix(vec3(0.52, 0.25, 0.15), vec3(0.78, 0.46, 0.28), strata);
         rockRed = mix(rockRed, vec3(0.86, 0.66, 0.46), smoothstep(0.75, 0.95, strata2) * 0.6);
         vec3 rock = mix(rockGrey, rockRed, redness);
+        // quarry: blue-grey cut stone with blasted bench bands
+        float quarry = smoothstep(uPit.z + 60.0, uPit.z + 5.0, length(p.xz - uPit.xy));
+        float band = sin(p.y * 0.68 + nA.g * 2.0) * 0.5 + 0.5;
+        vec3 stone = mix(vec3(0.34, 0.33, 0.32), vec3(0.55, 0.52, 0.48), band * 0.45 + tri.g * 0.55);
+        stone = mix(stone, vec3(0.46, 0.36, 0.28), smoothstep(0.7, 0.95, strata2) * 0.5);
+        rock = mix(rock, stone, quarry);
         rock *= 0.78 + 0.35 * tri.r;
         rock = mix(rock, rock * 0.7, smoothstep(0.35, 0.05, tri.b) * 0.6);
         // --- asphalt ---
@@ -395,6 +403,7 @@ function createTerrainMaterial(
         asphalt = mix(asphalt, paint, max(edgeLine, centre) * wear * sp.r);
         // --- gravel road ---
         vec3 gravel = mix(vec3(0.5, 0.44, 0.37), vec3(0.62, 0.56, 0.47), nC.r);
+        gravel = mix(gravel, mix(vec3(0.29, 0.28, 0.26), vec3(0.42, 0.4, 0.37), nC.r), quarry);
         gravel *= 0.85 + 0.3 * texture2D(uNoise, p.xz * 0.9).r;
         // --- packed/industrial ground ---
         vec3 packed = mix(vec3(0.4, 0.31, 0.23), vec3(0.5, 0.4, 0.3), nB.g);
@@ -406,7 +415,7 @@ function createTerrainMaterial(
         col = mix(col, packed, sp.a * (1.0 - sp.r));
         col = mix(col, gravel, sp.g * (1.0 - sp.r));
         col = mix(col, asphalt, sp.r);
-        float rockW = smoothstep(0.83, 0.68, wn.y + (nB.g - 0.5) * 0.12);
+        float rockW = smoothstep(0.83 + quarry * 0.1, 0.68 + quarry * 0.1, wn.y + (nB.g - 0.5) * 0.12);
         rockW = max(rockW, redness * smoothstep(0.9, 0.8, wn.y) * 0.5);
         rockW = max(rockW, smoothstep(45.0, 85.0, p.y + nA.g * 20.0) * 0.85);
         col = mix(col, rock, rockW * (1.0 - sp.r));

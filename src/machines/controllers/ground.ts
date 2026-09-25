@@ -41,7 +41,7 @@ interface Contact {
   side: number;
   axleKey: string;
   drive: boolean;
-  visualCenter: THREE.Vector3; // smoothed world wheel center
+  visualCenter: THREE.Vector3; // smoothed wheel centre in the suspension mount's space
 }
 
 const _a = new THREE.Vector3();
@@ -538,10 +538,12 @@ export class GroundController implements Controller {
       const ext = c.travel - c.compression; // extension
       const center = c.top.clone().applyMatrix4(bodyMat).addScaledVector(up, -(ext + c.travel * 0.0));
       const hubWorld = center.clone().addScaledVector(c.outward.clone().transformDirection(bodyMat), -(c.wheel ? c.width / 2 : 0));
-      if (c.visualCenter.lengthSq() === 0) c.visualCenter.copy(hubWorld);
-      c.visualCenter.lerp(hubWorld, 1 - Math.exp(-dt * 40));
+      // Smooth suspension travel in the mount's own space, so wheels never trail the body at speed
       knuckle.parent.updateMatrixWorld(true);
-      const local = knuckle.parent.worldToLocal(c.visualCenter.clone());
+      const target = knuckle.parent.worldToLocal(hubWorld);
+      if (c.visualCenter.lengthSq() === 0) c.visualCenter.copy(target);
+      c.visualCenter.lerp(target, 1 - Math.exp(-dt * 40));
+      const local = c.visualCenter.clone();
       knuckle.position.copy(local);
       // steering: rotate around vehicle up expressed in knuckle parent space
       const parentQ = knuckle.parent.getWorldQuaternion(new THREE.Quaternion());

@@ -1,0 +1,22 @@
+const app = window.__app;
+const P = await import('/src/gameplay/profile.ts');
+localStorage.clear();
+app.beginGame(P.newProfile(), false);
+game.frame(1 / 60);
+const T = game.player.currPos.constructor;
+game.env.time = 0.4;
+game.env.setWeather('clear', true);
+const c = { x: 720, z: -640 };
+const ty = game.terrain.heightAt(c.x, c.z);
+const at = (d, a) => ({ x: c.x + Math.cos(a) * d, z: c.z + Math.sin(a) * d });
+const a0 = Math.PI * 0.75; // south-west of the pit
+const o = at(270, a0);
+const rim = game.terrain.heightAt(o.x, o.z);
+game.debugCam = { pos: new T(o.x, rim + 70, o.z), target: new T(c.x, ty, c.z) };
+for (let i = 0; i < 4; i++) game.frame(1 / 60);
+await shot('overview');
+const r = at(168, a0);
+game.debugCam = { pos: new T(r.x, game.terrain.heightAt(r.x, r.z) + 7, r.z), target: new T(c.x, ty + 4, c.z) };
+for (let i = 0; i < 4; i++) game.frame(1 / 60);
+await shot('floor');
+return { floor: ty, rim, depth: rim - ty };

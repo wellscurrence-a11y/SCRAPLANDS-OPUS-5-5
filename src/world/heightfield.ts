@@ -115,27 +115,58 @@ function butteHeight(x: number, z: number) {
   return k * region * (18 + 14 * n.noise2(x / 50, z / 50));
 }
 
+let pitBase: number | null = null;
+/** Rim level of the quarry: the gentle desert height at its centre, ignoring buttes and mountains. */
+function pitBaseHeight() {
+  if (pitBase === null) pitBase = rollingHeight(PIT.x, PIT.z) + 2;
+  return pitBase;
+}
+
+/**
+ * The Pit: an open-cast mine cut to a fixed rim level, so buttes and the foot of the mountain ring
+ * are quarried away around it (leaving a cut face on the mountain side), with five benches and a
+ * haul ramp down to the floor.
+ */
 function pitHeight(x: number, z: number, h: number) {
   const dx = x - PIT.x;
   const dz = z - PIT.z;
   const d = Math.sqrt(dx * dx + dz * dz) + n.noise2(x / 40, z / 40) * 6;
-  if (d > PIT.radius + 20) return h;
+  const apronOuter = PIT.radius + 70;
+  if (d > apronOuter) return h;
+  const base = pitBaseHeight();
+  // level working apron around the rim
+  const apron = smoothstep(apronOuter, PIT.radius + 18, d);
+  const hApron = lerp(h, base + 0.8 * n.fbm2(x / 30, z / 30, 2), apron);
   const t = clamp01(d / PIT.radius);
   // five benches
   const depthT = 1 - smoothstep(0.28, 1.0, t);
-  const stepped = terrace(depthT * 5, 1, 3.2) / 5;
-  let ph = h - PIT.depth * stepped;
-  // ramp corridor
+  const stepped = terrace(depthT * 5, 1, 7) / 5;
+  let ph = base - PIT.depth * stepped + 0.6 * n.noise2(x / 12, z / 12) * (1 - stepped);
+  // haul ramp
   const r = distToSegment(x, z, PIT_RAMP.ax, PIT_RAMP.az, PIT_RAMP.bx, PIT_RAMP.bz);
   if (r.d < PIT_RAMP.width + 8) {
-    const rimH = h;
-    const floorH = h - PIT.depth;
-    const target = lerp(rimH, floorH, smoothstep(0.05, 0.95, r.t));
+    const target = lerp(base, base - PIT.depth, clamp01((r.t - 0.03) / 0.94)); // constant grade
     const k = smoothstep(PIT_RAMP.width + 8, PIT_RAMP.width, r.d);
-    ph = lerp(ph, Math.min(target, h), k);
+    ph = lerp(ph, Math.min(target, hApron), k);
   }
   const blend = smoothstep(PIT.radius + 20, PIT.radius, d);
-  return lerp(h, ph, blend);
+  let out = lerp(hApron, ph, blend);
+  // spoil heaps of overburden dumped along the apron
+  for (let i = 0; i < 6; i++) {
+    const a = 2.1 + i * 0.52;
+    const hx = PIT.x + Math.cos(a) * (PIT.radius + 42);
+    const hz = PIT.z + Math.sin(a) * (PIT.radius + 42);
+    const hd = Math.hypot(x - hx, z - hz) + n.noise2(x / 9, z / 9) * 3;
+    const heap = (1 - smoothstep(0, 17 - (i % 3) * 3, hd)) * (7 + (i % 3) * 2.5);
+    if (heap > 0) out = Math.max(out, base + heap * apron);
+  }
+  return out;
+}
+
+/** 0..1 inside the quarry (benches, floor and apron), for surface painting. */
+export function pitMask(x: number, z: number) {
+  const d = Math.hypot(x - PIT.x, z - PIT.z);
+  return smoothstep(PIT.radius + 60, PIT.radius + 10, d);
 }
 
 export function naturalHeight(x: number, z: number): number {
@@ -215,6 +246,26 @@ export function generateHeightfield(onProgress?: (p: number) => void): Heightfie
         heights[idx] = lerp(heights[idx], base + n.noise2(x / 20, z / 20) * 0.25, k);
         const packed = smoothstep(r * 1.1, r * 0.6, d);
         splat[idx * 4 + 3] = Math.max(splat[idx * 4 + 3], Math.round(packed * 255));
+        sandMask[idx] *= 1 - k;
+      }
+    }
+  }
+  // The quarry: gravel benches and floor, no drifting sand
+  {
+    const r = PIT.radius + 60;
+    const i0 = Math.max(0, Math.floor((PIT.x - r + HALF_WORLD) / CELL));
+    const i1 = Math.min(GRID - 1, Math.ceil((PIT.x + r + HALF_WORLD) / CELL));
+    const j0 = Math.max(0, Math.floor((PIT.z - r + HALF_WORLD) / CELL));
+    const j1 = Math.min(GRID - 1, Math.ceil((PIT.z + r + HALF_WORLD) / CELL));
+    for (let iz = j0; iz <= j1; iz++) {
+      for (let ix = i0; ix <= i1; ix++) {
+        const x = -HALF_WORLD + ix * CELL;
+        const z = -HALF_WORLD + iz * CELL;
+        const k = pitMask(x, z);
+        if (k <= 0) continue;
+        const idx = iz * GRID + ix;
+        const grit = 0.55 + 0.45 * n.noise2(x / 18, z / 18);
+        splat[idx * 4 + 1] = Math.max(splat[idx * 4 + 1], Math.round(k * grit * 230));
         sandMask[idx] *= 1 - k;
       }
     }
@@ -301,7 +352,7 @@ export function generateHeightfield(onProgress?: (p: number) => void): Heightfie
       const x = -HALF_WORLD + ix * CELL;
       const z = -HALF_WORLD + iz * CELL;
       const drift = smoothstep(0.35, 0.7, n2.fbm2(x / 120, z / 120, 3) * 0.5 + 0.5) * 0.55;
-      const s = clamp01(Math.max(sandMask[idx], drift * (1 - splat[idx * 4 + 3] / 255)));
+      const s = clamp01(Math.max(sandMask[idx], drift * (1 - splat[idx * 4 + 3] / 255) * (1 - pitMask(x, z))));
       splat[idx * 4 + 2] = Math.round(s * (1 - splat[idx * 4] / 255) * 255);
     }
   }
